@@ -12,7 +12,7 @@ using Map.Runtime;
 using MapEnhancer.UMM;
 using Model;
 using Model.Definition;
-using Model.OpsNew;
+using Model.Ops;
 using RollingStock;
 using System;
 using System.Collections;
@@ -90,6 +90,8 @@ public class MapEnhancer : MonoBehaviour
 	private Coroutine traincarColorUpdater;
 
 	private static HashSet<string> _mainlineSegments;
+	private static bool _isMapFullyLoaded = false;
+	
 	public static HashSet<string> mainlineSegments
 	{
 		get
@@ -117,7 +119,11 @@ public class MapEnhancer : MonoBehaviour
 	{
 		_mainlineSegments = new HashSet<string>();
 		_mainlineSwitches = new HashSet<string>();
-		foreach (var span in FindObjectsOfType<CTCBlock>(true).SelectMany(block => block.Spans))
+		var ctcBlocks = FindObjectsOfType<CTCBlock>(true);
+		
+		Loader.LogDebug($"Found {ctcBlocks.Length} CTC blocks for mainline identification");
+		
+		foreach (var span in ctcBlocks.SelectMany(block => block.Spans))
 		{
 			span.UpdateCachedPointsIfNeeded();
 			foreach (var seg in span._cachedSegments)
@@ -127,6 +133,67 @@ public class MapEnhancer : MonoBehaviour
 				_mainlineSwitches.Add(seg.b.id);
 			}
 		}
+		
+		Loader.LogDebug($"Identified {_mainlineSegments.Count} mainline segments and {_mainlineSwitches.Count} mainline switches");
+	}
+
+	private static void ReclassifyAllTrackSegments()
+	{
+		// Re-classify all existing track segments to handle race conditions with other mods
+		var segments = FindObjectsOfType<TrackSegment>();
+		int mainlineCount = 0;
+		int branchCount = 0;
+		int industrialCount = 0;
+		int preservedCount = 0;
+		
+		foreach (var segment in segments)
+		{
+			// Preserve existing industrial classifications
+			if (segment.trackClass == TrackClass.Industrial)
+			{
+				preservedCount++;
+				industrialCount++;
+				continue;
+			}
+			
+			// Only reclassify mainline vs branch for non-industrial tracks
+			if (mainlineSegments.Contains(segment.id))
+			{
+				segment.trackClass = TrackClass.Mainline;
+				mainlineCount++;
+			}
+			else
+			{
+				segment.trackClass = TrackClass.Branch;
+				branchCount++;
+			}
+		}
+		
+		Loader.LogDebug($"Reclassified {segments.Length} track segments: {mainlineCount} mainline, {branchCount} branch, {industrialCount} industrial preserved, {preservedCount} total preserved");
+	}
+
+	private static void ReclassifyIndustrialTracks()
+	{
+		// Ensure all industrial tracks are properly classified after our bulk reclassification
+		var industries = FindObjectsOfType<IndustryComponent>();
+		int industrialTracksSet = 0;
+		
+		foreach (var industry in industries)
+		{
+			if (industry is ProgressionIndustryComponent) continue;
+			
+			foreach (var tspan in industry.TrackSpans)
+			{
+				tspan.UpdateCachedPointsIfNeeded();
+				foreach (var seg in tspan._cachedSegments)
+				{
+					seg.trackClass = TrackClass.Industrial;
+					industrialTracksSet++;
+				}
+			}
+		}
+		
+		Loader.LogDebug($"Set {industrialTracksSet} industrial track segments from {industries.Length} industry components");
 	}
 
 	public static MapEnhancer Instance
@@ -206,6 +273,16 @@ public class MapEnhancer : MonoBehaviour
 
 		MapBuilder.Shared.mapCamera.GetComponent<UniversalAdditionalCameraData>().requiresDepthOption = CameraOverrideOption.Off;
 
+		// Now that the map is fully loaded, populate mainline segments and classify all existing tracks
+		_isMapFullyLoaded = true;
+		// Force re-population to ensure we have the most up-to-date CTC blocks from all mods
+		_mainlineSegments = null;
+		_mainlineSwitches = null;
+		// Re-classify all existing track segments now that we know which are mainline
+		ReclassifyAllTrackSegments();
+		// Ensure industrial tracks are properly set after our reclassification
+		ReclassifyIndustrialTracks();
+
 		Rebuild();
 		resizer = MapResizer.Create();
 		OnSettingsChanged();
@@ -242,6 +319,9 @@ public class MapEnhancer : MonoBehaviour
 		Loader.LogDebug("OnMapWillUnload");
 
 		MapState = MapStates.MAPUNLOADING;
+		// Reset flag to prevent track classification during map unload/reload
+		_isMapFullyLoaded = false;
+		
 		Messenger.Default.Unregister<WorldDidMoveEvent>(this);
 		if (cullingGroup != null)
 		{
@@ -788,10 +868,11 @@ public class MapEnhancer : MonoBehaviour
 		List<Location> locations = new List<Location>();
 		foreach (TrackSegment trackSegment in Graph.Shared.segments.Values)
 		{
-			Location? result = Graph.Shared.LocationFromPoint(trackSegment, gamePosition, radius);
-			if (result.HasValue && result.Value.IsValid)
+			Location loc;
+			bool result = Graph.Shared.TryGetLocationFromPoint(trackSegment, gamePosition, radius, out loc);
+			if (result && loc.IsValid)
 			{
-				locations.Add((Location)result);
+				locations.Add((Location)loc);
 			}
 		}
 
@@ -875,6 +956,14 @@ public class MapEnhancer : MonoBehaviour
 	{
 		private static void Postfix(TrackSegment __instance)
 		{
+			// Only classify tracks after the map is fully loaded to avoid race conditions with other mods
+			if (!_isMapFullyLoaded)
+				return;
+			
+			// Don't override industrial tracks that may have been set by other systems
+			if (__instance.trackClass == TrackClass.Industrial)
+				return;
+				
 			if (mainlineSegments.Contains(__instance.id))
 				__instance.trackClass = TrackClass.Mainline;
 			else

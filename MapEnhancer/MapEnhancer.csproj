@@ -14,10 +14,18 @@
 
 	<!-- Railroader -->
 	<ItemGroup>
-		<Reference Include="Assembly-CSharp" />
-		<Reference Include="Core" />
-		<Reference Include="Definition" />
-		<Reference Include="Map.Runtime" />
+		<Reference Include="Assembly-CSharp">
+			<HintPath>$(RrManagedDir)\Assembly-CSharp.dll</HintPath>
+		</Reference>
+		<Reference Include="Core">
+			<HintPath>$(RrManagedDir)\Core.dll</HintPath>
+		</Reference>
+		<Reference Include="Definition">
+			<HintPath>$(RrManagedDir)\Definition.dll</HintPath>
+		</Reference>
+		<Reference Include="Map.Runtime">
+			<HintPath>$(RrManagedDir)\Map.Runtime.dll</HintPath>
+		</Reference>
 	</ItemGroup>
 
 	<!-- Mod Loader -->
@@ -34,18 +42,42 @@
 
 	<!-- Unity -->
 	<ItemGroup>
-		<Reference Include="UnityEngine" />
-		<Reference Include="UnityEngine.CoreModule" />
-		<Reference Include="UnityEngine.IMGUIModule" />
-		<Reference Include="UnityEngine.InputModule" />
-		<Reference Include="UnityEngine.PhysicsModule" />
-		<Reference Include="UnityEngine.UI" />
-		<Reference Include="UnityEngine.UIModule" />
-		<Reference Include="UnityEngine.ImageConversionModule" />
-		<Reference Include="UnityEngine.InputLegacyModule" />
-		<Reference Include="Unity.InputSystem" />
-		<Reference Include="Unity.RenderPipelines.Universal.Runtime" />
-		<Reference Include="Unity.TextMeshPro" />
+		<Reference Include="UnityEngine">
+			<HintPath>$(RrManagedDir)\UnityEngine.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.CoreModule">
+			<HintPath>$(RrManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.IMGUIModule">
+			<HintPath>$(RrManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.InputModule">
+			<HintPath>$(RrManagedDir)\UnityEngine.InputModule.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.PhysicsModule">
+			<HintPath>$(RrManagedDir)\UnityEngine.PhysicsModule.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.UI">
+			<HintPath>$(RrManagedDir)\UnityEngine.UI.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.UIModule">
+			<HintPath>$(RrManagedDir)\UnityEngine.UIModule.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.ImageConversionModule">
+			<HintPath>$(RrManagedDir)\UnityEngine.ImageConversionModule.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.InputLegacyModule">
+			<HintPath>$(RrManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
+		</Reference>
+		<Reference Include="Unity.InputSystem">
+			<HintPath>$(RrManagedDir)\Unity.InputSystem.dll</HintPath>
+		</Reference>
+		<Reference Include="Unity.RenderPipelines.Universal.Runtime">
+			<HintPath>$(RrManagedDir)\Unity.RenderPipelines.Universal.Runtime.dll</HintPath>
+		</Reference>
+		<Reference Include="Unity.TextMeshPro">
+			<HintPath>$(RrManagedDir)\Unity.TextMeshPro.dll</HintPath>
+		</Reference>
 	</ItemGroup>
 	
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">

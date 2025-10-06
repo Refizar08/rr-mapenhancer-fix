@@ -1,4 +1,5 @@
 using Helpers;
+using Helpers.Culling;
 using System;
 using UI.Map;
 using UnityEngine;
@@ -18,7 +19,13 @@ public class CanvasCuller : MonoBehaviour, CullingManager.ICullingEventHandler
 			cullingToken.Dispose();
 		}
 
-		CullingManager cullingManager = CullingManager.ForName("canvas", new[] { float.PositiveInfinity });
+		CullingManager cullingManager = FindObjectOfType<CullingManager>();
+		if (cullingManager == null)
+		{
+			GameObject go = new GameObject("CanvasCullingManager");
+			cullingManager = go.AddComponent<CullingManager>();
+			cullingManager.Configure("canvas", new[] { float.PositiveInfinity });
+		}  
 		_cullingToken = cullingManager.AddSphere(transform, radius, this);
 		_cullingToken.RegisterFixedUpdate(transform);
 		var camera = MapBuilder.Shared.mapCamera;

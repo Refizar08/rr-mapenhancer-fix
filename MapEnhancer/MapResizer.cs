@@ -146,8 +146,8 @@ namespace MapEnhancer
 		private void CreateDragHandle()
 		{
 			var image = transform.GetComponent<Image>();
-			image.color = new Color(77f/255f, 69f/255f, 55f/255f, 1f);
-			image.sprite = transform.parent.Find("Chrome/Resize Widget")?.GetComponentInChildren<Image>()?.sprite;
+			image.color = new Color(70f/255f, 69f/255f, 55f/255f, 5f/255f);
+			image.sprite = Resources.Load<Sprite>("UI/ResizeWidget");
 
 			var rect = GetComponent<RectTransform>();
 			rect.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Right, 4f, 22f);
