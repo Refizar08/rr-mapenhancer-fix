@@ -109,6 +109,12 @@ public static class Loader
 		public Color TrackColorBranch = TrackColorBranchOrig;
 		public Color TrackColorIndustrial = TrackColorIndustrialOrig;
 		public Color TrackColorUnavailable = TrackColorUnavailableOrig;
+		public static readonly Color TrackColorPaxOrig = new Color(0.5f, 0f, 0.5f, 1f); // Purple
+		public Color TrackColorPax = TrackColorPaxOrig;
+
+		// Feature toggles
+		public bool UseVisualOnlyTrackColors = false; // Visual-only track coloring (doesn't change track classes)
+		public bool EnablePassengerStopTracking = false; // Track passenger stop segments (requires reload)
 
 		public override void Save(UnityModManager.ModEntry modEntry)
 		{
@@ -258,6 +264,41 @@ public static class Loader
 			if (DrawColor(ref Settings.TrackColorIndustrial)) changed = true;
 			GUILayout.Label("Unavailable Track Color");
 			if (DrawColor(ref Settings.TrackColorUnavailable)) changed = true;
+
+			GUILayout.Space(UnityModManager.UI.Scale(10));
+			GUILayout.Label("--- Optional Features ---", GUILayout.ExpandWidth(true));
+			
+			GUILayout.Space(UnityModManager.UI.Scale(5));
+			using (new GUILayout.HorizontalScope())
+			{
+				var visualOnly = GUILayout.Toggle(Settings.UseVisualOnlyTrackColors, "Use Visual-Only Track Coloring (doesn't modify track classes)");
+				if (Settings.UseVisualOnlyTrackColors != visualOnly)
+				{
+					Settings.UseVisualOnlyTrackColors = visualOnly;
+					changed = true;
+				}
+			}
+			if (Settings.UseVisualOnlyTrackColors)
+			{
+				GUILayout.Label("  ℹ️ Track colors are visual only. Track classes remain unchanged.", GUILayout.ExpandWidth(true));
+			}
+
+			GUILayout.Space(UnityModManager.UI.Scale(5));
+			using (new GUILayout.HorizontalScope())
+			{
+				var paxTracking = GUILayout.Toggle(Settings.EnablePassengerStopTracking, "Enable Passenger Stop Tracking (requires map reload)");
+				if (Settings.EnablePassengerStopTracking != paxTracking)
+				{
+					Settings.EnablePassengerStopTracking = paxTracking;
+					changed = true;
+				}
+			}
+			if (Settings.EnablePassengerStopTracking)
+			{
+				GUILayout.Label("  ℹ️ Passenger stops will be highlighted in custom color.", GUILayout.ExpandWidth(true));
+				GUILayout.Label("Passenger Stop Track Color");
+				if (DrawColor(ref Settings.TrackColorPax)) changed = true;
+			}
 		}
 
 		if (changed) Settings.OnChange();

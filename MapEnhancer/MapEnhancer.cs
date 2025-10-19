@@ -90,6 +90,8 @@ public class MapEnhancer : MonoBehaviour
 	private Coroutine traincarColorUpdater;
 
 	private static HashSet<string> _mainlineSegments;
+	private static HashSet<string> _industrialSegments = new HashSet<string>();
+	private static HashSet<string> _passengerStopSegments = new HashSet<string>();
 	private static bool _isMapFullyLoaded = false;
 	
 	public static HashSet<string> mainlineSegments
@@ -139,6 +141,13 @@ public class MapEnhancer : MonoBehaviour
 
 	private static void ReclassifyAllTrackSegments()
 	{
+		// Skip if using visual-only mode
+		if (Instance?.Settings.UseVisualOnlyTrackColors ?? false)
+		{
+			Loader.LogDebug("Skipping track reclassification - visual-only mode enabled");
+			return;
+		}
+			
 		// Re-classify all existing track segments to handle race conditions with other mods
 		var segments = FindObjectsOfType<TrackSegment>();
 		int mainlineCount = 0;
@@ -174,6 +183,13 @@ public class MapEnhancer : MonoBehaviour
 
 	private static void ReclassifyIndustrialTracks()
 	{
+		// Skip if using visual-only mode
+		if (Instance?.Settings.UseVisualOnlyTrackColors ?? false)
+		{
+			Loader.LogDebug("Skipping industrial track reclassification - visual-only mode enabled");
+			return;
+		}
+			
 		// Ensure all industrial tracks are properly classified after our bulk reclassification
 		var industries = FindObjectsOfType<IndustryComponent>();
 		int industrialTracksSet = 0;
@@ -321,6 +337,10 @@ public class MapEnhancer : MonoBehaviour
 		MapState = MapStates.MAPUNLOADING;
 		// Reset flag to prevent track classification during map unload/reload
 		_isMapFullyLoaded = false;
+		
+		// Clear tracking sets
+		_passengerStopSegments.Clear();
+		_industrialSegments.Clear();
 		
 		Messenger.Default.Unregister<WorldDidMoveEvent>(this);
 		if (cullingGroup != null)
@@ -956,6 +976,10 @@ public class MapEnhancer : MonoBehaviour
 	{
 		private static void Postfix(TrackSegment __instance)
 		{
+			// Skip track class modification if using visual-only mode
+			if (Instance?.Settings.UseVisualOnlyTrackColors ?? false)
+				return;
+				
 			// Only classify tracks after the map is fully loaded to avoid race conditions with other mods
 			if (!_isMapFullyLoaded)
 				return;
@@ -995,13 +1019,79 @@ public class MapEnhancer : MonoBehaviour
 		private static void Postfix(IndustryComponent __instance)
 		{
 			if (__instance is ProgressionIndustryComponent) return;
+			
 			foreach (var tspan in __instance.TrackSpans)
 			{
 				tspan.UpdateCachedPointsIfNeeded();
 				foreach (var seg in tspan._cachedSegments)
 				{
-					seg.trackClass = Track.TrackClass.Industrial;
+					// Always track industrial segments for visual-only mode
+					_industrialSegments.Add(seg.id);
+					
+					// Only modify track class if not using visual-only mode
+					if (Instance == null || !Instance.Settings.UseVisualOnlyTrackColors)
+					{
+						seg.trackClass = Track.TrackClass.Industrial;
+					}
 				}
+			}
+		}
+	}
+
+	[HarmonyPatch(typeof(PassengerStop), nameof(PassengerStop.OnEnable))]
+	private static class PassengerStopPatch
+	{
+		private static void Postfix(PassengerStop __instance)
+		{
+			// Only track if feature is enabled
+			if (!Instance?.Settings.EnablePassengerStopTracking ?? true) return;
+			
+			Loader.LogDebug($"PassengerStop: {__instance.DisplayName}");
+			foreach (var tspan in __instance.TrackSpans)
+			{
+				tspan.UpdateCachedPointsIfNeeded();
+				foreach (var seg in tspan._cachedSegments)
+				{
+					_passengerStopSegments.Add(seg.id);
+					Loader.LogDebug($"Found PassengerStop segment: {seg.id}");
+				}
+			}
+		}
+	}
+
+	[HarmonyPatch(typeof(MapBuilder), nameof(MapBuilder.ColorForSegment))]
+	private static class ColorForSegmentPatch
+	{
+		private static void Postfix(ref TrackSegment segment, ref Color __result)
+		{
+			// Only apply if visual-only mode is enabled
+			if (Instance == null || !Instance.Settings.UseVisualOnlyTrackColors) return;
+
+			if (!segment.Available)
+			{
+				__result = Instance.Settings.TrackColorUnavailable;
+				return;
+			}
+
+			// Default to branch color
+			__result = Instance.Settings.TrackColorBranch;
+			
+			// Check mainline
+			if (_mainlineSegments.Contains(segment.id))
+			{
+				__result = Instance.Settings.TrackColorMainline;
+			}
+			
+			// Check industrial (overrides mainline)
+			if (_industrialSegments.Contains(segment.id))
+			{
+				__result = Instance.Settings.TrackColorIndustrial;
+			}
+			
+			// Check passenger stops (overrides industrial if enabled)
+			if (Instance.Settings.EnablePassengerStopTracking && _passengerStopSegments.Contains(segment.id))
+			{
+				__result = Instance.Settings.TrackColorPax;
 			}
 		}
 	}
