@@ -1006,6 +1006,69 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	[HarmonyPatch(typeof(MapBuilder), "Add")]
+	private static class MapBuilderAddPatch
+	{
+		private static void Postfix(MapIcon icon)
+		{
+			// Check if this is a signal's map icon
+			var signal = icon.transform.parent?.GetComponent<CTCSignal>();
+			if (signal == null) return;
+
+			// Find the icon's image
+			var image = icon.GetComponentInChildren<Image>(true);
+			if (image == null) return;
+
+			// Start monitoring this signal icon
+			if (!icon.gameObject.GetComponent<SignalIconColorizer>())
+			{
+				var colorizer = icon.gameObject.AddComponent<SignalIconColorizer>();
+				colorizer.Setup(signal, image);
+			}
+		}
+	}
+
+	private class SignalIconColorizer : MonoBehaviour
+	{
+		private CTCSignal signal;
+		private Image icon;
+		private SignalAspect lastAspect;
+
+		public void Setup(CTCSignal ctcSignal, Image iconImage)
+		{
+			signal = ctcSignal;
+			icon = iconImage;
+			lastAspect = signal.CurrentAspect;
+			UpdateColor();
+		}
+
+		void Update()
+		{
+			if (signal != null && signal.CurrentAspect != lastAspect)
+			{
+				lastAspect = signal.CurrentAspect;
+				UpdateColor();
+			}
+		}
+
+		private void UpdateColor()
+		{
+			Color signalColor = lastAspect switch
+			{
+				SignalAspect.Stop => Color.red,
+				SignalAspect.Approach => Color.yellow,
+				SignalAspect.Clear => Color.green,
+				SignalAspect.DivergingApproach => Color.yellow,
+				SignalAspect.DivergingClear => Color.green,
+				SignalAspect.Restricting => new Color(1f, 0.5f, 0f), // Orange
+				_ => Color.white
+			};
+
+			signalColor.a = 0.8f;
+			icon.color = signalColor;
+		}
+	}
+
 	[HarmonyPatch(typeof(MapBuilder), nameof(MapBuilder.UpdateForZoom))]
 	private static class MapBuilderZoomPatch
 	{
