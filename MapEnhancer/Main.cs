@@ -93,30 +93,30 @@ public static class Loader
 
 		public float TrackLineThickness = 1.25f;
 
-		public MsaaQuality MSAA = MsaaQuality._4x;
+	public MsaaQuality MSAA = MsaaQuality._4x;
 
-		public static readonly Color TrackColorMainlineOrig = new Color(0f, 0f, 1f, 1f);
-		public static readonly Color TrackColorBranchOrig = new Color(0f, 0.572f, 0.792f, 1f);
-		public static readonly Color TrackColorIndustrialOrig = new Color(0.749f, 0.749f, 0f, 1f);
-		public static readonly Color TrackColorUnavailableOrig = new Color(1f, 0f, 0f, 1f);
-		public static readonly Color[] TrackClassColorMap = {
-			new Color(0,0,0,0),
-			new Color(0,0,1,0),
-			new Color(0,1,0,0),
-			new Color(1,0,0,0)};
+	public static readonly Color TrackColorMainlineOrig = new Color(0f, 155f / 255f, 0f, 1f); // Green (RGB 0, 155, 0)
+	public static readonly Color TrackColorBranchOrig = new Color(0f, 0.572f, 0.792f, 1f);
+	public static readonly Color TrackColorIndustrialOrig = new Color(0.749f, 0.749f, 0f, 1f);
+	public static readonly Color TrackColorUnavailableOrig = new Color(1f, 0f, 0f, 1f);
+	public static readonly Color[] TrackClassColorMap = {
+		new Color(0,0,0,0),
+		new Color(0,0,1,0),
+		new Color(0,1,0,0),
+		new Color(1,0,0,0)};
 
-		public Color TrackColorMainline = TrackColorMainlineOrig;
-		public Color TrackColorBranch = TrackColorBranchOrig;
-		public Color TrackColorIndustrial = TrackColorIndustrialOrig;
-		public Color TrackColorUnavailable = TrackColorUnavailableOrig;
-		public static readonly Color TrackColorPaxOrig = new Color(0.5f, 0f, 0.5f, 1f); // Purple
-		public Color TrackColorPax = TrackColorPaxOrig;
+	public Color TrackColorMainline = TrackColorMainlineOrig;
+	public Color TrackColorBranch = TrackColorBranchOrig;
+	public Color TrackColorIndustrial = TrackColorIndustrialOrig;
+	public Color TrackColorUnavailable = TrackColorUnavailableOrig;
+	public static readonly Color TrackColorPaxOrig = new Color(0.5f, 0f, 0.5f, 1f); // Purple
+	public Color TrackColorPax = TrackColorPaxOrig;
 
-		// Feature toggles
-		public bool UseVisualOnlyTrackColors = false; // Visual-only track coloring (doesn't change track classes)
-		public bool EnablePassengerStopTracking = false; // Track passenger stop segments (requires reload)
+	// Feature toggles
+	public bool UseVisualOnlyTrackColors = true; // Visual-only track coloring (doesn't change track classes)
+	public bool EnablePassengerStopTracking = false; // Track passenger stop segments (requires reload)
 
-		public override void Save(UnityModManager.ModEntry modEntry)
+	public override void Save(UnityModManager.ModEntry modEntry)
 		{
 			Save(this, modEntry);
 		}

@@ -393,7 +393,7 @@ public class MapEnhancer : MonoBehaviour
 		var settingsGo = new GameObject("Map Settings", typeof(RectTransform));
 		mapSettings = settingsGo.GetComponent<RectTransform>();
 		mapSettings.SetParent(MapWindow.instance._window.transform, false);
-		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 30);
+		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 120); // Increased height to fit 4 items
 		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Right, 4, 145);
 
 		var panel = UIPanel.Create(mapSettings, FindObjectOfType<ProgrammaticWindowCreator>().builderAssets, builder =>
@@ -416,11 +416,41 @@ public class MapEnhancer : MonoBehaviour
 				}
 			}).GetComponent<TMP_Dropdown>();
 
-			AddLocoSelectorDropdown(builder);
-		});
-		settingsGo.AddComponent<Image>().color = new Color(0.1098f, 0.1098f, 0.1098f, 1f);
-
-		void AddLocoSelectorDropdown(UIPanelBuilder builder)
+		AddLocoSelectorDropdown(builder);
+		AddResetSwitchesDropdown(builder);
+	});
+	settingsGo.AddComponent<Image>().color = new Color(0.1098f, 0.1098f, 0.1098f, 1f);
+	
+	void AddResetSwitchesDropdown(UIPanelBuilder builder)
+	{
+		TMP_Dropdown? resetDropdown = null;
+		var resetOptions = new List<TMP_Dropdown.OptionData>() 
+		{ 
+			new TMP_Dropdown.OptionData("Switch Reset..."),
+			new TMP_Dropdown.OptionData("All to Normal"),
+			new TMP_Dropdown.OptionData("All to Thrown")
+		};
+		
+		resetDropdown = builder.AddDropdown(resetOptions, 0, (index) =>
+		{
+			if (index == 0) return; // Skip default option
+			
+			if (index == 1)
+			{
+				// Reset all switches to normal (straight)
+				ResetAllSwitchesToNormal();
+			}
+			else if (index == 2)
+			{
+				// Set all switches to thrown (diverging)
+				ResetAllSwitchesToThrown();
+			}
+			
+			resetDropdown!.SetValueWithoutNotify(0); // Reset dropdown to default
+		}).GetComponent<TMP_Dropdown>();
+	}
+	
+	void AddLocoSelectorDropdown(UIPanelBuilder builder)
 		{
 			RectTransform rectTransform = builder.CreateRectView("DropDown", 0, 0);
 
@@ -483,6 +513,44 @@ public class MapEnhancer : MonoBehaviour
 
 			return _teleportLocations;
 		}
+	}
+
+	private void ResetAllSwitchesToNormal()
+	{
+		int switchesReset = 0;
+		
+		foreach (var kvp in TrackObjectManager.Instance._descriptors.switches)
+		{
+			var switchNode = kvp.Value.node;
+			
+			// Only reset if switch is thrown (not in normal position)
+			if (switchNode.isThrown)
+			{
+				StateManager.ApplyLocal(new RequestSetSwitch(switchNode.id, false));
+				switchesReset++;
+			}
+		}
+		
+		Loader.Log($"Reset {switchesReset} switches to normal position");
+	}
+
+	private void ResetAllSwitchesToThrown()
+	{
+		int switchesReset = 0;
+		
+		foreach (var kvp in TrackObjectManager.Instance._descriptors.switches)
+		{
+			var switchNode = kvp.Value.node;
+			
+			// Only set if switch is in normal position (not thrown)
+			if (!switchNode.isThrown)
+			{
+				StateManager.ApplyLocal(new RequestSetSwitch(switchNode.id, true));
+				switchesReset++;
+			}
+		}
+		
+		Loader.Log($"Set {switchesReset} switches to thrown position");
 	}
 
 	private IEnumerator TraincarColorUpdater()
