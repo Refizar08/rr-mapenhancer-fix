@@ -1043,9 +1043,8 @@ public class MapEnhancer : MonoBehaviour
 	{
 		private static void Postfix(PassengerStop __instance)
 		{
-			// Only track if feature is enabled
-			if (!Instance?.Settings.EnablePassengerStopTracking ?? true) return;
-			
+			// Always track passenger stops (even if tracking feature is disabled)
+			// This allows them to override industrial color
 			Loader.LogDebug($"PassengerStop: {__instance.DisplayName}");
 			foreach (var tspan in __instance.TrackSpans)
 			{
@@ -1073,22 +1072,26 @@ public class MapEnhancer : MonoBehaviour
 				return;
 			}
 
+			// Use HashSet lookups for visual-only mode (don't rely on track class property)
 			// Default to branch color
 			__result = Instance.Settings.TrackColorBranch;
 			
-			// Check mainline
+			// Check mainline (CTC blocks define mainline)
 			if (_mainlineSegments.Contains(segment.id))
 			{
 				__result = Instance.Settings.TrackColorMainline;
 			}
 			
-			// Check industrial (overrides mainline)
-			if (_industrialSegments.Contains(segment.id))
+			// Check industrial (industry tracks override mainline/branch)
+			// BUT: Never show industrial if this is a passenger stop (even if tracking disabled)
+			if (_industrialSegments.Contains(segment.id) 
+				&& !_mainlineSegments.Contains(segment.id)
+				&& !_passengerStopSegments.Contains(segment.id))
 			{
 				__result = Instance.Settings.TrackColorIndustrial;
 			}
 			
-			// Check passenger stops (overrides industrial if enabled)
+			// Check passenger stops (shows purple ONLY if tracking enabled)
 			if (Instance.Settings.EnablePassengerStopTracking && _passengerStopSegments.Contains(segment.id))
 			{
 				__result = Instance.Settings.TrackColorPax;
