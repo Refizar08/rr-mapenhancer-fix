@@ -90,6 +90,8 @@ public class MapEnhancer : MonoBehaviour
 	private Coroutine traincarColorUpdater;
 
 	private static HashSet<string> _mainlineSegments;
+	private static HashSet<string> _industrialSegments = new HashSet<string>();
+	private static HashSet<string> _passengerStopSegments = new HashSet<string>();
 	private static bool _isMapFullyLoaded = false;
 	
 	public static HashSet<string> mainlineSegments
@@ -139,6 +141,13 @@ public class MapEnhancer : MonoBehaviour
 
 	private static void ReclassifyAllTrackSegments()
 	{
+		// Skip if using visual-only mode
+		if (Instance?.Settings.UseVisualOnlyTrackColors ?? false)
+		{
+			Loader.LogDebug("Skipping track reclassification - visual-only mode enabled");
+			return;
+		}
+			
 		// Re-classify all existing track segments to handle race conditions with other mods
 		var segments = FindObjectsOfType<TrackSegment>();
 		int mainlineCount = 0;
@@ -174,6 +183,13 @@ public class MapEnhancer : MonoBehaviour
 
 	private static void ReclassifyIndustrialTracks()
 	{
+		// Skip if using visual-only mode
+		if (Instance?.Settings.UseVisualOnlyTrackColors ?? false)
+		{
+			Loader.LogDebug("Skipping industrial track reclassification - visual-only mode enabled");
+			return;
+		}
+			
 		// Ensure all industrial tracks are properly classified after our bulk reclassification
 		var industries = FindObjectsOfType<IndustryComponent>();
 		int industrialTracksSet = 0;
@@ -322,6 +338,10 @@ public class MapEnhancer : MonoBehaviour
 		// Reset flag to prevent track classification during map unload/reload
 		_isMapFullyLoaded = false;
 		
+		// Clear tracking sets
+		_passengerStopSegments.Clear();
+		_industrialSegments.Clear();
+		
 		Messenger.Default.Unregister<WorldDidMoveEvent>(this);
 		if (cullingGroup != null)
 		{
@@ -373,7 +393,7 @@ public class MapEnhancer : MonoBehaviour
 		var settingsGo = new GameObject("Map Settings", typeof(RectTransform));
 		mapSettings = settingsGo.GetComponent<RectTransform>();
 		mapSettings.SetParent(MapWindow.instance._window.transform, false);
-		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 30);
+		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 120); // Increased height to fit 4 items
 		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Right, 4, 145);
 
 		var panel = UIPanel.Create(mapSettings, FindObjectOfType<ProgrammaticWindowCreator>().builderAssets, builder =>
@@ -396,11 +416,41 @@ public class MapEnhancer : MonoBehaviour
 				}
 			}).GetComponent<TMP_Dropdown>();
 
-			AddLocoSelectorDropdown(builder);
-		});
-		settingsGo.AddComponent<Image>().color = new Color(0.1098f, 0.1098f, 0.1098f, 1f);
-
-		void AddLocoSelectorDropdown(UIPanelBuilder builder)
+		AddLocoSelectorDropdown(builder);
+		AddResetSwitchesDropdown(builder);
+	});
+	settingsGo.AddComponent<Image>().color = new Color(0.1098f, 0.1098f, 0.1098f, 1f);
+	
+	void AddResetSwitchesDropdown(UIPanelBuilder builder)
+	{
+		TMP_Dropdown? resetDropdown = null;
+		var resetOptions = new List<TMP_Dropdown.OptionData>() 
+		{ 
+			new TMP_Dropdown.OptionData("Switch Reset..."),
+			new TMP_Dropdown.OptionData("All to Normal"),
+			new TMP_Dropdown.OptionData("All to Thrown")
+		};
+		
+		resetDropdown = builder.AddDropdown(resetOptions, 0, (index) =>
+		{
+			if (index == 0) return; // Skip default option
+			
+			if (index == 1)
+			{
+				// Reset all switches to normal (straight)
+				ResetAllSwitchesToNormal();
+			}
+			else if (index == 2)
+			{
+				// Set all switches to thrown (diverging)
+				ResetAllSwitchesToThrown();
+			}
+			
+			resetDropdown!.SetValueWithoutNotify(0); // Reset dropdown to default
+		}).GetComponent<TMP_Dropdown>();
+	}
+	
+	void AddLocoSelectorDropdown(UIPanelBuilder builder)
 		{
 			RectTransform rectTransform = builder.CreateRectView("DropDown", 0, 0);
 
@@ -463,6 +513,44 @@ public class MapEnhancer : MonoBehaviour
 
 			return _teleportLocations;
 		}
+	}
+
+	private void ResetAllSwitchesToNormal()
+	{
+		int switchesReset = 0;
+		
+		foreach (var kvp in TrackObjectManager.Instance._descriptors.switches)
+		{
+			var switchNode = kvp.Value.node;
+			
+			// Only reset if switch is thrown (not in normal position)
+			if (switchNode.isThrown)
+			{
+				StateManager.ApplyLocal(new RequestSetSwitch(switchNode.id, false));
+				switchesReset++;
+			}
+		}
+		
+		Loader.Log($"Reset {switchesReset} switches to normal position");
+	}
+
+	private void ResetAllSwitchesToThrown()
+	{
+		int switchesReset = 0;
+		
+		foreach (var kvp in TrackObjectManager.Instance._descriptors.switches)
+		{
+			var switchNode = kvp.Value.node;
+			
+			// Only set if switch is in normal position (not thrown)
+			if (!switchNode.isThrown)
+			{
+				StateManager.ApplyLocal(new RequestSetSwitch(switchNode.id, true));
+				switchesReset++;
+			}
+		}
+		
+		Loader.Log($"Set {switchesReset} switches to thrown position");
 	}
 
 	private IEnumerator TraincarColorUpdater()
@@ -956,6 +1044,10 @@ public class MapEnhancer : MonoBehaviour
 	{
 		private static void Postfix(TrackSegment __instance)
 		{
+			// Skip track class modification if using visual-only mode
+			if (Instance?.Settings.UseVisualOnlyTrackColors ?? false)
+				return;
+				
 			// Only classify tracks after the map is fully loaded to avoid race conditions with other mods
 			if (!_isMapFullyLoaded)
 				return;
@@ -995,14 +1087,146 @@ public class MapEnhancer : MonoBehaviour
 		private static void Postfix(IndustryComponent __instance)
 		{
 			if (__instance is ProgressionIndustryComponent) return;
+			
 			foreach (var tspan in __instance.TrackSpans)
 			{
 				tspan.UpdateCachedPointsIfNeeded();
 				foreach (var seg in tspan._cachedSegments)
 				{
-					seg.trackClass = Track.TrackClass.Industrial;
+					// Always track industrial segments for visual-only mode
+					_industrialSegments.Add(seg.id);
+					
+					// Only modify track class if not using visual-only mode
+					if (Instance == null || !Instance.Settings.UseVisualOnlyTrackColors)
+					{
+						seg.trackClass = Track.TrackClass.Industrial;
+					}
 				}
 			}
+		}
+	}
+
+	[HarmonyPatch(typeof(PassengerStop), nameof(PassengerStop.OnEnable))]
+	private static class PassengerStopPatch
+	{
+		private static void Postfix(PassengerStop __instance)
+		{
+			// Always track passenger stops (even if tracking feature is disabled)
+			// This allows them to override industrial color
+			Loader.LogDebug($"PassengerStop: {__instance.DisplayName}");
+			foreach (var tspan in __instance.TrackSpans)
+			{
+				tspan.UpdateCachedPointsIfNeeded();
+				foreach (var seg in tspan._cachedSegments)
+				{
+					_passengerStopSegments.Add(seg.id);
+					Loader.LogDebug($"Found PassengerStop segment: {seg.id}");
+				}
+			}
+		}
+	}
+
+	[HarmonyPatch(typeof(MapBuilder), nameof(MapBuilder.ColorForSegment))]
+	private static class ColorForSegmentPatch
+	{
+		private static void Postfix(ref TrackSegment segment, ref Color __result)
+		{
+			// Only apply if visual-only mode is enabled
+			if (Instance == null || !Instance.Settings.UseVisualOnlyTrackColors) return;
+
+			if (!segment.Available)
+			{
+				__result = Instance.Settings.TrackColorUnavailable;
+				return;
+			}
+
+			// Use HashSet lookups for visual-only mode (don't rely on track class property)
+			// Default to branch color
+			__result = Instance.Settings.TrackColorBranch;
+			
+			// Check mainline (CTC blocks define mainline)
+			if (_mainlineSegments.Contains(segment.id))
+			{
+				__result = Instance.Settings.TrackColorMainline;
+			}
+			
+			// Check industrial (industry tracks override mainline/branch)
+			// BUT: Never show industrial if this is a passenger stop (even if tracking disabled)
+			if (_industrialSegments.Contains(segment.id) 
+				&& !_mainlineSegments.Contains(segment.id)
+				&& !_passengerStopSegments.Contains(segment.id))
+			{
+				__result = Instance.Settings.TrackColorIndustrial;
+			}
+			
+			// Check passenger stops (shows purple ONLY if tracking enabled)
+			if (Instance.Settings.EnablePassengerStopTracking && _passengerStopSegments.Contains(segment.id))
+			{
+				__result = Instance.Settings.TrackColorPax;
+			}
+		}
+	}
+
+	[HarmonyPatch(typeof(MapBuilder), "Add")]
+	private static class MapBuilderAddPatch
+	{
+		private static void Postfix(MapIcon icon)
+		{
+			// Check if this is a signal's map icon
+			var signal = icon.transform.parent?.GetComponent<CTCSignal>();
+			if (signal == null) return;
+
+			// Find the icon's image
+			var image = icon.GetComponentInChildren<Image>(true);
+			if (image == null) return;
+
+			// Start monitoring this signal icon
+			if (!icon.gameObject.GetComponent<SignalIconColorizer>())
+			{
+				var colorizer = icon.gameObject.AddComponent<SignalIconColorizer>();
+				colorizer.Setup(signal, image);
+			}
+		}
+	}
+
+	private class SignalIconColorizer : MonoBehaviour
+	{
+		private CTCSignal signal;
+		private Image icon;
+		private SignalAspect lastAspect;
+
+		public void Setup(CTCSignal ctcSignal, Image iconImage)
+		{
+			signal = ctcSignal;
+			icon = iconImage;
+			lastAspect = signal.CurrentAspect;
+			UpdateColor();
+		}
+
+		void Update()
+		{
+			if (signal != null && signal.CurrentAspect != lastAspect)
+			{
+				lastAspect = signal.CurrentAspect;
+				UpdateColor();
+			}
+		}
+
+		private void UpdateColor()
+		{
+			Color signalColor = lastAspect switch
+			{
+				SignalAspect.Stop => Color.red,
+				SignalAspect.Approach => Color.yellow,
+				SignalAspect.Clear => Color.green,
+				SignalAspect.DivergingApproach => Color.yellow,
+				SignalAspect.DivergingClear => Color.green,
+				SignalAspect.Restricting => new Color(1f, 0.5f, 0f), // Orange
+				_ => Color.white
+			};
+
+			signalColor.a = 0.8f;
+			icon.color = signalColor;
 		}
 	}
 

@@ -93,24 +93,30 @@ public static class Loader
 
 		public float TrackLineThickness = 1.25f;
 
-		public MsaaQuality MSAA = MsaaQuality._4x;
+	public MsaaQuality MSAA = MsaaQuality._4x;
 
-		public static readonly Color TrackColorMainlineOrig = new Color(0f, 0f, 1f, 1f);
-		public static readonly Color TrackColorBranchOrig = new Color(0f, 0.572f, 0.792f, 1f);
-		public static readonly Color TrackColorIndustrialOrig = new Color(0.749f, 0.749f, 0f, 1f);
-		public static readonly Color TrackColorUnavailableOrig = new Color(1f, 0f, 0f, 1f);
-		public static readonly Color[] TrackClassColorMap = {
-			new Color(0,0,0,0),
-			new Color(0,0,1,0),
-			new Color(0,1,0,0),
-			new Color(1,0,0,0)};
+	public static readonly Color TrackColorMainlineOrig = new Color(0f, 155f / 255f, 0f, 1f); // Green (RGB 0, 155, 0)
+	public static readonly Color TrackColorBranchOrig = new Color(0f, 0.572f, 0.792f, 1f);
+	public static readonly Color TrackColorIndustrialOrig = new Color(0.749f, 0.749f, 0f, 1f);
+	public static readonly Color TrackColorUnavailableOrig = new Color(1f, 0f, 0f, 1f);
+	public static readonly Color[] TrackClassColorMap = {
+		new Color(0,0,0,0),
+		new Color(0,0,1,0),
+		new Color(0,1,0,0),
+		new Color(1,0,0,0)};
 
-		public Color TrackColorMainline = TrackColorMainlineOrig;
-		public Color TrackColorBranch = TrackColorBranchOrig;
-		public Color TrackColorIndustrial = TrackColorIndustrialOrig;
-		public Color TrackColorUnavailable = TrackColorUnavailableOrig;
+	public Color TrackColorMainline = TrackColorMainlineOrig;
+	public Color TrackColorBranch = TrackColorBranchOrig;
+	public Color TrackColorIndustrial = TrackColorIndustrialOrig;
+	public Color TrackColorUnavailable = TrackColorUnavailableOrig;
+	public static readonly Color TrackColorPaxOrig = new Color(0.5f, 0f, 0.5f, 1f); // Purple
+	public Color TrackColorPax = TrackColorPaxOrig;
 
-		public override void Save(UnityModManager.ModEntry modEntry)
+	// Feature toggles
+	public bool UseVisualOnlyTrackColors = true; // Visual-only track coloring (doesn't change track classes)
+	public bool EnablePassengerStopTracking = false; // Track passenger stop segments (requires reload)
+
+	public override void Save(UnityModManager.ModEntry modEntry)
 		{
 			Save(this, modEntry);
 		}
@@ -258,6 +264,41 @@ public static class Loader
 			if (DrawColor(ref Settings.TrackColorIndustrial)) changed = true;
 			GUILayout.Label("Unavailable Track Color");
 			if (DrawColor(ref Settings.TrackColorUnavailable)) changed = true;
+
+			GUILayout.Space(UnityModManager.UI.Scale(10));
+			GUILayout.Label("--- Optional Features ---", GUILayout.ExpandWidth(true));
+			
+			GUILayout.Space(UnityModManager.UI.Scale(5));
+			using (new GUILayout.HorizontalScope())
+			{
+				var visualOnly = GUILayout.Toggle(Settings.UseVisualOnlyTrackColors, "Use Visual-Only Track Coloring (doesn't modify track classes)");
+				if (Settings.UseVisualOnlyTrackColors != visualOnly)
+				{
+					Settings.UseVisualOnlyTrackColors = visualOnly;
+					changed = true;
+				}
+			}
+			if (Settings.UseVisualOnlyTrackColors)
+			{
+				GUILayout.Label("  ℹ️ Track colors are visual only. Track classes remain unchanged.", GUILayout.ExpandWidth(true));
+			}
+
+			GUILayout.Space(UnityModManager.UI.Scale(5));
+			using (new GUILayout.HorizontalScope())
+			{
+				var paxTracking = GUILayout.Toggle(Settings.EnablePassengerStopTracking, "Enable Passenger Stop Tracking (requires map reload)");
+				if (Settings.EnablePassengerStopTracking != paxTracking)
+				{
+					Settings.EnablePassengerStopTracking = paxTracking;
+					changed = true;
+				}
+			}
+			if (Settings.EnablePassengerStopTracking)
+			{
+				GUILayout.Label("  ℹ️ Passenger stops will be highlighted in custom color.", GUILayout.ExpandWidth(true));
+				GUILayout.Label("Passenger Stop Track Color");
+				if (DrawColor(ref Settings.TrackColorPax)) changed = true;
+			}
 		}
 
 		if (changed) Settings.OnChange();
