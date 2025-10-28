@@ -115,6 +115,7 @@ public static class Loader
 	// Feature toggles
 	public bool UseVisualOnlyTrackColors = true; // Visual-only track coloring (doesn't change track classes)
 	public bool EnablePassengerStopTracking = false; // Track passenger stop segments (requires reload)
+	public bool EnableIndustryAreaColors = true; // Color industrial tracks by their area colors (requires reload)
 
 	public override void Save(UnityModManager.ModEntry modEntry)
 		{
@@ -297,7 +298,26 @@ public static class Loader
 			{
 				GUILayout.Label("  ℹ️ Passenger stops will be highlighted in custom color.", GUILayout.ExpandWidth(true));
 				GUILayout.Label("Passenger Stop Track Color");
-				if (DrawColor(ref Settings.TrackColorPax)) changed = true;
+				if (UnityModManager.UI.DrawColor(ref Settings.TrackColorPax)) changed = true;
+			}
+
+			GUILayout.Space(UnityModManager.UI.Scale(5));
+			using (new GUILayout.HorizontalScope())
+			{
+				var industryColors = GUILayout.Toggle(Settings.EnableIndustryAreaColors, "Enable Industry Area Colors (requires map reload)");
+				if (Settings.EnableIndustryAreaColors != industryColors)
+				{
+					Settings.EnableIndustryAreaColors = industryColors;
+					changed = true;
+				}
+			}
+			if (Settings.EnableIndustryAreaColors)
+			{
+				GUILayout.Label("  ℹ️ Industrial tracks will be colored by their area's color.", GUILayout.ExpandWidth(true));
+			}
+			else
+			{
+				GUILayout.Label("  ℹ️ Industrial tracks will use the default industrial color.", GUILayout.ExpandWidth(true));
 			}
 		}
 

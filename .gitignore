@@ -403,7 +403,7 @@ FodyWeavers.xsd
 # Ignore local project files
 Directory.Build.props
 
-# Ignore .mdf files created by EF Core
+# Ignore .md files created by EF Core
 *.md
 
 # Ignore html
