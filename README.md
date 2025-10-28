@@ -19,57 +19,170 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 
 ## ✨ Features
 
-### Core Map Enhancements
-- **Enhanced Junction Markers**: Customizable junction markers with size controls
-- **Improved Track Visualization**: Better track coloring and line thickness options
-- **Traincar Map Icons**: See all cars on the map, not just locomotives
-- **Flare Markers**: Visual flare indicators on the map
-- **Advanced Zoom Controls**: Customize min/max zoom levels (50-15000 range)
-- **Map Window Resizing**: Flexible map window sizing
-- **Signal Visualization**: Color-coded signal icons showing current aspects
-- **Location Teleport**: Quick teleport dropdown to major locations
-- **Switch Reset Tools**: Quickly reset all switches to normal or thrown position
+### 🆕 Community Fork Exclusive Features
+
+#### **Industry Area Colors** (v1.5.3.7)
+- 🎨 Industrial tracks colored by their owning area's color (instead of uniform yellow)
+- 🔧 Toggle control in mod settings (enabled by default)
+- 🎯 Area registry lookup for accurate industry ownership detection
+- ✅ Works correctly with both vanilla and modded industries
+- 🌈 Light grey color for unreachable tracks (prevents confusion with red Sylva area)
+- 🔄 Position-based fallback if registry lookup fails
+
+#### **Signal Status Display on Map** (v1.5.3.6)
+- 🚦 Real-time signal aspect visualization on map
+- 🔴 Red: Stop
+- 🟡 Yellow: Approach/Diverging Approach  
+- 🟢 Green: Clear/Diverging Clear
+- 🟠 Orange: Restricting
+
+#### **Visual-Only Track Coloring Mode** (v1.5.3.6)
+- 👁️ Track colors are purely visual - doesn't modify underlying track classes
+- 🔌 Prevents conflicts with other mods that depend on track classifications
+- ⚙️ Toggle feature in settings (enabled by default)
+- 🔄 Compatible with all existing MapEnhancer features
+
+#### **Passenger Stop Tracking** (v1.5.3.6)
+- 🟣 Highlight passenger stop track segments in purple
+- 🔧 Toggle feature in settings (disabled by default)
+- 🎨 Custom color picker for passenger stops
+
+#### **Switch Reset Tools** (v1.5.3.6)
+- 🔄 Reset ALL switches to Normal position (straight/mainline route)
+- 🔄 Reset ALL switches to Thrown position (diverging route)
+- 📍 Accessible via dropdown in map settings panel
+- ⚡ Quick bulk operations for track management
+
+#### **Critical Bug Fixes** (v1.5.2.2025-fix)
+- ✅ Fixed race condition with track classification
+- ✅ Resolved mainline/industrial tracks incorrectly classified as branch
+- ✅ Track segments now properly classified after all mods initialize
+- ✅ Industrial track coloring preserved correctly
+- ✅ Improved compatibility with other map/track mods
+
+### Core Map Enhancements (Original Features)
+
+#### **Enhanced Junction Markers**
+- 🎯 Customizable junction markers with size controls
+- 🔀 Visual indicators for switch positions (green=normal, red=thrown)
+- 🎚️ Adjustable marker scale (0.5 - 1.0)
+- 👁️ Auto-hide non-mainline markers at zoom threshold
+
+#### **Advanced Track Visualization**
+- 🎨 Fully customizable track colors (mainline, branch, industrial, unavailable)
+- 📏 Adjustable track line thickness (0.5 - 2.0)
+- 🌈 RGBA color pickers for all track types
+- 🎯 Track class-based automatic coloring
+
+#### **Traincar Map Icons**
+- 🚃 See ALL cars on the map, not just locomotives
+- 📝 Car identification labels (reporting mark + road number)
+- 🎨 Freight car color coding by destination area
+- 📦 Visual representation scaled by car length
+- 👆 Click to inspect car details
+
+#### **Flare Markers**
+- 🔥 Visual flare indicators on the map
+- 📍 Place flares directly from map view
+- 🎚️ Adjustable flare marker scale (0.1 - 1.0)
+- 🗑️ Click flares to remove them
+
+#### **Advanced Zoom & View Controls**
+- 🔍 Customizable min/max zoom levels (50 - 15000 range)
+- 📐 Map window resizing (200 - 800 docked size)
+- 🎮 Anti-aliasing options (Off, 2x, 4x, 8x)
+- 🎯 Better zoom normalization and icon scaling
+
+#### **Location Teleport System**
+- 📍 Quick teleport dropdown to major locations
+- 🎨 Color-coded locations by area
+- 🗺️ Auto-sorted by area color (hue-based)
+- ⚡ Instant camera repositioning
+
+#### **Locomotive Selector**
+- 🚂 Dropdown list of all locomotives
+- 📋 Sorted by locomotive name
+- 👆 Click to center map on selected locomotive
+- 🔄 Auto-updates as locomotives are added/removed
 
 ### Map Controls
-- **Toggle Map**: `Z` - Quick toggle map size
-- **Follow Mode**: `Ctrl+Z` - Keep map focused on selected locomotive
-- **Re-center Map**: `Shift+Z` - Center map on current camera position
-- **Place Flares**: Click on map with flare tool active
 
-### Track Color Customization
-- **Mainline Tracks**: Default green (RGB 0, 155, 0) - fully customizable
-- **Branch/Yard Tracks**: Default Blue - fully customizable
-- **Industrial Tracks**: Default yellow or togglable area-based colors - fully customizable
-- **Unavailable Tracks**: Customizable color (light grey when industry area colors enabled)
-- **Passenger Stop Tracks**: Optional purple highlighting (toggle feature)
+#### **Keyboard Shortcuts**
+- `Z` - Toggle map size (docked/fullscreen)
+- `Ctrl+Z` - Toggle follow mode (keeps map focused on selected locomotive)
+- `Shift+Z` - Re-center map on current camera position
+- `Left Click` - Place flare (when flare tool is active)
+- `Double Click` - Optional: Require double-click for interactions
+
+#### **Mouse Controls**
+- 🖱️ Drag to pan the map
+- 🔍 Scroll to zoom in/out
+- 👆 Click icons to interact (inspect cars, remove flares, etc.)
+- 🎯 Click locomotives/cars to inspect and select
+
+### Track Color System
+
+#### **Default Track Colors**
+- 🟢 **Mainline Tracks**: Green (RGB [0, 155, 0], customisable)
+- 🔵 **Branch/Yard Tracks**: Blue (Teal, customisable)
+- 🟡 **Industrial Tracks**: Yellow (or area color when enabled)
+- ⚪ **Unavailable Tracks**: Light grey (or red when industry area colors disabled)
+- 🟣 **Passenger Stops**: Purple (when tracking enabled, customisable)
+
+#### **Customization**
+- 🎨 Full RGBA color pickers for all track types
+- 💾 Colors persist between sessions
+- 🔄 Reset to defaults available
 
 ### 🆕 New in This Fork
 
-#### **Industry Area Colors** (v1.5.3.7)
-- Industrial tracks are now colored by their owning area's color
-- Works correctly with both default and modded industries
-- Toggle feature in settings (enabled by default)
-- Uses area registry lookup for accurate color assignment
-- Unreachable tracks shown in light grey to avoid confusion
+This fork includes ALL features from the original Map Enhancer PLUS:
 
-#### **Visual-Only Track Coloring Mode**
-- Track colors are purely visual - doesn't modify underlying track classes
-- Prevents conflicts with other mods that depend on track classifications
-- Enabled by default
+#### ✨ **v1.5.3.7 - Industry Area Colors** (Latest)
+- Industrial tracks colored by owning area instead of uniform yellow
+- Toggle control with default enabled
+- Area registry lookup for accurate ownership
+- Works with modded industries
+- Light grey unreachable tracks (prevents confusion)
 
-#### **Passenger Stop Tracking**
-- Highlight passenger stop track segments in purple
-- Toggle feature in settings (disabled by default)
-- Requires map reload when toggled
+#### ✨ **v1.5.3.6 - Signals, Passenger Tracking & Switches**
+- Real-time signal status display on map (color-coded)
+- Passenger stop tracking with purple highlighting
+- Visual-only track coloring mode (toggle)
+- Bulk switch reset tools (All Normal / All Thrown)
+- Fixed track classification race conditions
 
-#### **Bug Fixes**
-- ✅ Fixed race conditions with track classification from other mods
-- ✅ Improved mainline/branch track detection reliability
-- ✅ Fixed track color consistency between modes
+#### ✨ **v1.5.2.2025-fix - Track Classification Fix**
+- Fixed mainline/industrial tracks misclassified as branch
+- Resolved race condition with other map/track mods
+- Proper initialization timing for track segments
 
 ## ⚙️ Configuration
 
-All settings are avialable at first game launch!
+All settings are available and shown when game first launches.
+
+### Display Settings
+- **Fusee (Flare) Marker Scale**: 0.1 - 1.0 (default: 0.6)
+- **Junction Marker Scale**: 0.5 - 1.0 (default: 0.6)
+- **Junction Non-Mainline Marker Cutoff**: 0.01 - 1.0 (default: 0.12)
+  - Controls when non-mainline junction markers hide based on zoom level
+- **Track Line Thickness**: 0.5 - 2.0 (default: 1.25)
+- **Map Window Antialiasing**: Off, 2x, 4x, 8x (default: 4x)
+
+### Map Settings
+- **Docked Map Window Size**: 200 - 800 (default: 800)
+- **Map Zoom Min**: 50 - 100 (default: 50)
+  - Lower values = more zoom in capability
+- **Map Zoom Max**: 5000 - 15000 (default: 10000)
+  - Higher values = more zoom out capability
+
+### Interaction Settings
+- **Require Double Click**: Toggle for double-click requirement on map interactions
+
+### Keyboard Bindings
+- **Toggle Map Size**: Default `Z` (customizable)
+- **Follow Mode**: Default `Ctrl+Z` (customizable)
+- **Re-center Map**: Default `Shift+Z` (customizable)
 
 ### Track Colors
 Customize colors for all track types with RGBA sliders:
@@ -103,17 +216,34 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 
 ## 📜 Version History
 
-### v1.5.3.7 (Latest)
-- ✨ Added industry area colors feature with toggle control
-- ✨ Industrial tracks now colored by their owning area
-- 🐛 Fixed modded industries showing incorrect colors
-- 🎨 Changed unreachable track color to light grey when industry colors enabled
+### v1.5.3.7 (2025-10-29) - Latest
+**Industry Area Colors & Visual Improvements**
+- ✨ NEW: Industrial tracks colored by owning area's color
+- � Toggle control for industry area colors (default: enabled)
+- 🎯 Area registry lookup for accurate industry ownership
+- ✅ Fixed modded industries showing incorrect colors
+- 🎨 Changed unreachable tracks to light grey (prevents confusion with red Sylva area)
+- 🔄 Position-based fallback detection
+- 🧹 Debug logging improvements
+- 🛠️ Code cleanup and formatting
 
-### v1.5.3.6
-- 🐛 Fixed track class race conditions with other mods
-- ✨ Added visual-only track coloring mode
-- ✨ Added passenger stop tracking feature
+### v1.5.3.6 (2025-10-22)
+**Signals, Passenger Tracking & Switch Tools**
+- 🚦 NEW: Signal status display on map with color-coded aspects
+- 🟣 NEW: Passenger stop tracking with toggle (purple highlighting)
+- 👁️ NEW: Visual-only track coloring mode (toggle)
+- 🔄 NEW: Bulk switch reset tools (All Normal / All Thrown)
+- 🐛 Fixed track classification issues
+- 🐛 Fixed branch/passenger track detection
 - 🛠️ Improved mainline/industrial track detection
+
+### v1.5.2.2025-fix (2025-10-06)
+**Track Classification Fix**
+- 🐛 Fixed race condition with track classification
+- ✅ Resolved mainline/industrial tracks misclassified as branch
+- ✅ Track segments now properly classified after all mods initialize
+- ✅ Industrial track coloring preserved correctly
+- 🔌 Better compatibility with other map/track mods
 
 ### Previous Versions
 See [Releases](https://github.com/Refizar08/rr-mapenhancer-fix/releases) for complete version history.
