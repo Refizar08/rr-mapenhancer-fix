@@ -403,8 +403,9 @@ FodyWeavers.xsd
 # Ignore local project files
 Directory.Build.props
 
-# Ignore .md files created by EF Core
+# Ignore .md files created by EF Core (but not README)
 *.md
+!README.md
 
 # Ignore html
 *.html
