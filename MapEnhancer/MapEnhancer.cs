@@ -1079,6 +1079,9 @@ public class MapEnhancer : MonoBehaviour
 		private static void Postfix(IndustryComponent __instance)
 		{
 			if (__instance is ProgressionIndustryComponent) return;
+			// Only process active industry components. If an industry isn't active/available
+			// we shouldn't mark its track segments or apply area coloring.
+			if (!__instance.gameObject || !__instance.gameObject.activeInHierarchy) return;
 			
 			// Default to yellow if area coloring is disabled
 			Color industryColor = Color.yellow;
@@ -1105,6 +1108,14 @@ public class MapEnhancer : MonoBehaviour
 										if (component == __instance)
 										{
 											foundArea = area;
+											// Skip LegoTrainMan's Cross Traffic global industries area (dark gray)
+											// This mod creates a "legos-global-industries" area for all interchanges
+											// We want to use default yellow color instead of the gray area color
+											if (foundArea.identifier == "legos-global-industries")
+											{
+												Loader.LogDebug($"[MapEnhancer] Industry '{__instance.gameObject.name}' -> Skipping Cross Traffic global area, using default yellow");
+												goto FoundIndustry;
+											}
 											if (foundArea.tagColor != default(Color))
 											{
 												industryColor = foundArea.tagColor;
