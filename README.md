@@ -1,6 +1,6 @@
 # Map Enhancer - Community Fix Edition
 
-[![Version](https://img.shields.io/badge/version-1.5.3.7-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
+[![Version](https://img.shields.io/badge/version-1.5.4-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
 [![Game](https://img.shields.io/badge/Railroader-2025-green.svg)](https://store.steampowered.com/app/1683150/Railroader/)
 
 > **Note:** This is a maintained fork by me with fixes and improvements for Map Enhancer. I had pull from the main repository but provide working updates and bug fixes until Vanguard officially updates the original mod.
@@ -21,6 +21,12 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 
 ### 🆕 Community Fork Exclusive Features
 
+#### **Cross Traffic Mod Compatibility** (v1.5.4)
+- 🔧 Fixed interchange tracks appearing dark gray with LegoTrainMan's Cross Traffic mod
+- 🎨 Interchanges now correctly display yellow or proper area colors
+- 🛡️ Skips Cross Traffic's global industry area to prevent color conflicts
+- ✅ Full compatibility with Cross Traffic functionality maintained
+
 #### **Industry Area Colors** (v1.5.3.7)
 - 🎨 Industrial tracks colored by their owning area's color (instead of uniform yellow)
 - 🔧 Toggle control in mod settings (enabled by default)
@@ -28,6 +34,7 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 - ✅ Works correctly with both vanilla and modded industries
 - 🌈 Light grey color for unreachable tracks (prevents confusion with red Sylva area)
 - 🔄 Position-based fallback if registry lookup fails
+- 🛡️ Inactive industry guard prevents disabled industries from affecting track colors
 
 #### **Signal Status Display on Map** (v1.5.3.6)
 - 🚦 Real-time signal aspect visualization on map
@@ -134,28 +141,19 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 - 💾 Colors persist between sessions
 - 🔄 Reset to defaults available
 
-### 🆕 New in This Fork
+### 🆕 What's New in This Fork
 
-This fork includes ALL features from the original Map Enhancer PLUS:
+This fork includes **ALL original Map Enhancer features** plus community improvements:
 
-#### ✨ **v1.5.3.7 - Industry Area Colors** (Latest)
-- Industrial tracks colored by owning area instead of uniform yellow
-- Toggle control with default enabled
-- Area registry lookup for accurate ownership
-- Works with modded industries
-- Light grey unreachable tracks (prevents confusion)
+- 🔧 **Cross Traffic mod compatibility** - No more gray interchanges (v1.5.4)
+- 🎨 **Industry area colors** - Tracks colored by owning area (v1.5.3.7)
+- 🚦 **Signal status display** - Real-time signal aspects on map (v1.5.3.6)
+- 🟣 **Passenger stop tracking** - Optional purple highlighting (v1.5.3.6)
+- 👁️ **Visual-only track colors** - No conflicts with other mods (v1.5.3.6)
+- 🔄 **Bulk switch reset tools** - Reset all switches at once (v1.5.3.6)
+- ✅ **Critical bug fixes** - Track classification race conditions resolved (v1.5.2)
 
-#### ✨ **v1.5.3.6 - Signals, Passenger Tracking & Switches**
-- Real-time signal status display on map (color-coded)
-- Passenger stop tracking with purple highlighting
-- Visual-only track coloring mode (toggle)
-- Bulk switch reset tools (All Normal / All Thrown)
-- Fixed track classification race conditions
-
-#### ✨ **v1.5.2.2025-fix - Track Classification Fix**
-- Fixed mainline/industrial tracks misclassified as branch
-- Resolved race condition with other map/track mods
-- Proper initialization timing for track segments
+See detailed feature descriptions below and full changelog in [Version History](#-version-history).
 
 ## ⚙️ Configuration
 
@@ -216,34 +214,30 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 
 ## 📜 Version History
 
-### v1.5.3.7 (2025-10-29) - Latest
-**Industry Area Colors & Visual Improvements**
-- ✨ NEW: Industrial tracks colored by owning area's color
-- � Toggle control for industry area colors (default: enabled)
-- 🎯 Area registry lookup for accurate industry ownership
-- ✅ Fixed modded industries showing incorrect colors
-- 🎨 Changed unreachable tracks to light grey (prevents confusion with red Sylva area)
-- 🔄 Position-based fallback detection
-- 🧹 Debug logging improvements
-- 🛠️ Code cleanup and formatting
+### v1.5.4 (2025-10-30) - Latest
+- 🔧 Fixed: Interchange tracks appearing dark gray with LegoTrainMan's Cross Traffic mod
+- 🛡️ Added: Check to skip Cross Traffic's "legos-global-industries" area identifier
+- 🛡️ Added: Guard for inactive industry components
+- ✅ Maintains full compatibility with Cross Traffic functionality
+
+### v1.5.3.7 (2025-10-29)
+- ✨ Added: Industrial tracks colored by owning area's color (toggle in settings)
+- 🎯 Added: Area registry lookup for accurate industry ownership detection
+- 🎨 Changed: Unreachable tracks now light grey (prevents confusion with red Sylva area)
+- ✅ Fixed: Modded industries showing incorrect colors
+- � Added: Position-based fallback detection
 
 ### v1.5.3.6 (2025-10-22)
-**Signals, Passenger Tracking & Switch Tools**
-- 🚦 NEW: Signal status display on map with color-coded aspects
-- 🟣 NEW: Passenger stop tracking with toggle (purple highlighting)
-- 👁️ NEW: Visual-only track coloring mode (toggle)
-- 🔄 NEW: Bulk switch reset tools (All Normal / All Thrown)
-- 🐛 Fixed track classification issues
-- 🐛 Fixed branch/passenger track detection
-- 🛠️ Improved mainline/industrial track detection
+- 🚦 Added: Signal status display on map with color-coded aspects
+- 🟣 Added: Passenger stop tracking with toggle (purple highlighting)
+- 👁️ Added: Visual-only track coloring mode to prevent mod conflicts
+- 🔄 Added: Bulk switch reset tools (All Normal / All Thrown)
+- 🐛 Fixed: Track classification issues and branch/passenger track detection
 
 ### v1.5.2.2025-fix (2025-10-06)
-**Track Classification Fix**
-- 🐛 Fixed race condition with track classification
-- ✅ Resolved mainline/industrial tracks misclassified as branch
-- ✅ Track segments now properly classified after all mods initialize
-- ✅ Industrial track coloring preserved correctly
-- 🔌 Better compatibility with other map/track mods
+- 🐛 Fixed: Race condition with track classification
+- ✅ Fixed: Mainline/industrial tracks misclassified as branch
+- 🔌 Improved: Compatibility with other map/track mods
 
 ### Previous Versions
 See [Releases](https://github.com/Refizar08/rr-mapenhancer-fix/releases) for complete version history.
