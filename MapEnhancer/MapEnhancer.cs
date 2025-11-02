@@ -229,6 +229,23 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	void Update()
+	{
+		if (MapState == MapStates.MAPLOADED && Junctions != null && MapWindow.instance != null)
+		{
+			bool mapWindowShown = MapWindow.instance._window.IsShown;
+			if (Junctions.activeSelf != mapWindowShown)
+			{
+				Junctions.SetActive(mapWindowShown);
+			}
+			
+			if (mapWindowShown && mapSettings == null)
+			{
+				CreateMapSettings();
+			}
+		}
+	}
+
 	void OnDestroy()
 	{
 		Loader.LogDebug("OnDestroy");
@@ -277,6 +294,11 @@ public class MapEnhancer : MonoBehaviour
 		Junctions.SetActive(MapWindow.instance._window.IsShown);
 
 		MapWindow.instance._window.OnShownDidChange += OnMapWindowShown;
+		
+		if (MapWindow.instance._window.IsShown)
+		{
+			Junctions.SetActive(true);
+		}
 
 		GatherTraincarMarkers();
 		traincarColorUpdater = StartCoroutine(TraincarColorUpdater());
@@ -311,23 +333,6 @@ public class MapEnhancer : MonoBehaviour
 
 	private void CleanupIconsAndLabels()
 	{
-		var mi = Resources.FindObjectsOfTypeAll<MapIcon>();
-		var ml = Resources.FindObjectsOfTypeAll<MapLabel>();
-
-		foreach (var m in mi)
-		{
-			var gr = m.GetComponent<GraphicRaycaster>();
-			var cs = m.GetComponent<CanvasScaler>();
-			if (gr) DestroyImmediate(gr);
-			if (cs) DestroyImmediate(cs);
-		}
-		foreach (var m in ml)
-		{
-			var gr = m.GetComponent<GraphicRaycaster>();
-			var cs = m.GetComponent<CanvasScaler>();
-			if (gr) DestroyImmediate(gr);
-			if (cs) DestroyImmediate(cs);
-		}
 	}
 
 	private void OnMapWillUnload(MapWillUnloadEvent evt)
@@ -394,8 +399,10 @@ public class MapEnhancer : MonoBehaviour
 		var settingsGo = new GameObject("Map Settings", typeof(RectTransform));
 		mapSettings = settingsGo.GetComponent<RectTransform>();
 		mapSettings.SetParent(MapWindow.instance._window.transform, false);
-		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 120); // Increased height to fit 4 items
+		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 120);
 		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Right, 4, 145);
+
+		settingsGo.AddComponent<GraphicRaycaster>();
 
 		var panel = UIPanel.Create(mapSettings, FindObjectOfType<ProgrammaticWindowCreator>().builderAssets, builder =>
 		{
@@ -653,6 +660,18 @@ public class MapEnhancer : MonoBehaviour
 	private void CreateSwitches()
 	{
 		Loader.LogDebug("CreateSwitches");
+		
+		if (TrackObjectManager.Instance == null || TrackObjectManager.Instance._descriptors.switches == null)
+		{
+			return;
+		}
+		
+		int switchCount = TrackObjectManager.Instance._descriptors.switches.Count;
+		if (switchCount == 0)
+		{
+			return;
+		}
+		
 		foreach (var jm in junctionMarkers) Destroy(jm.JunctionMarker);
 		junctionMarkers.Clear();
 		foreach (var kvp in TrackObjectManager.Instance._descriptors.switches)
