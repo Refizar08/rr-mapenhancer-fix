@@ -1,6 +1,6 @@
 # Map Enhancer - Community Fix Edition
 
-[![Version](https://img.shields.io/badge/version-1.5.4-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
+[![Version](https://img.shields.io/badge/version-1.5.4.1-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
 [![Game](https://img.shields.io/badge/Railroader-2025-green.svg)](https://store.steampowered.com/app/1683150/Railroader/)
 
 > **Note:** This is a maintained fork by me with fixes and improvements for Map Enhancer. I had pull from the main repository but provide working updates and bug fixes until Vanguard officially updates the original mod.
@@ -20,6 +20,20 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 ## ✨ Features
 
 ### 🆕 Community Fork Exclusive Features
+
+#### **AR Branch & For Your Convenience Mod Compatibility Fix** (v1.5.4.1)
+- 🔧 Fixed: AR Branchline mod compatibility issues
+- 🔧 Fixed: Mod conflict with Zamu.ForYourConvenience (FYC)
+- ✅ Fixed: Junction switches not showing on map when both mods are active
+- ✅ Fixed: Map UI settings menu not appearing with AR Branch and FYC
+- 🛡️ Improved: Map extension initialization to prevent conflicts with other map mods
+
+#### **Switch Reset Logging & Customizable Colors** (v1.5.4.1)
+- 📝 Logs switch reset actions with player name tracking
+- 🔒 Anti-trolling: See who reset switches in multiplayer sessions
+- ⏰ Timestamped file logs
+- 🎨 Full control over unreachable/unavailable track color when industry area colors enabled
+- 🎚️ Consistent RGBA slider UI for all color pickers
 
 #### **Cross Traffic Mod Compatibility** (v1.5.4)
 - 🔧 Fixed interchange tracks appearing dark gray with LegoTrainMan's Cross Traffic mod
@@ -59,6 +73,7 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 - 🔄 Reset ALL switches to Thrown position (diverging route)
 - 📍 Accessible via dropdown in map settings panel
 - ⚡ Quick bulk operations for track management
+- 📝 Logged actions with player identification (v1.5.4.1)
 
 #### **Critical Bug Fixes** (v1.5.2.2025-fix)
 - ✅ Fixed race condition with track classification
@@ -133,7 +148,7 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 - 🟢 **Mainline Tracks**: Green (RGB [0, 155, 0], customisable)
 - 🔵 **Branch/Yard Tracks**: Blue (Teal, customisable)
 - 🟡 **Industrial Tracks**: Yellow (or area color when enabled)
-- ⚪ **Unavailable Tracks**: Light grey (or red when industry area colors disabled)
+- ⚪ **Unavailable Tracks**: Red (or light grey when industry area colors enabled, customisable)
 - 🟣 **Passenger Stops**: Purple (when tracking enabled, customisable)
 
 #### **Customization**
@@ -145,6 +160,9 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 
 This fork includes **ALL original Map Enhancer features** plus community improvements:
 
+- 🔧 **AR Branch & FYC compatibility** - Fixed switches and map UI issues (v1.5.4.1)
+- 📝 **Switch reset logging** - Track who resets switches in multiplayer (v1.5.4.1)
+- 🎨 **Customizable unreachable track color** - Full control over unavailable track appearance (v1.5.4.1)
 - 🔧 **Cross Traffic mod compatibility** - No more gray interchanges (v1.5.4)
 - 🎨 **Industry area colors** - Tracks colored by owning area (v1.5.3.7)
 - 🚦 **Signal status display** - Real-time signal aspects on map (v1.5.3.6)
@@ -189,6 +207,7 @@ Customize colors for all track types with RGBA sliders:
 - Industry Track Color
 - Unavailable Track Color
 - Passenger Stop Track Color (when enabled)
+- Unreachable Track Color (when industry area colors enabled)
 
 ### Feature Toggles
 - ☑️ **Use Visual-Only Track Coloring** (default: ON)
@@ -214,7 +233,25 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 
 ## 📜 Version History
 
-### v1.5.4 (2025-10-30) - Latest
+### v1.5.4.1 (2025-11-03) - Latest
+
+- 🔧 Fixed: AR Branchline mod compatibility issues
+- 🔧 Fixed: Mod conflict with Zamu.ForYourConvenience (FYC)
+- ✅ Fixed: Junction switches not showing on map when both mods are active  
+- ✅ Fixed: Map UI settings menu not appearing with AR Branch and FYC
+- 🛡️ Improved: Map extension initialization to prevent conflicts with other map mods
+- 📝 Added: Switch reset logging with player name tracking
+  - Logging: in-game console, railloader.log
+  - Timestamped file logs with total switch count
+  - Anti-trolling feature for multiplayer sessions
+- 🎨 Added: Customizable unreachable track color setting
+  - RGBA color picker for unreachable tracks when industry area colors enabled
+  - Replaces hardcoded light grey color with user preference
+  - Separate from standard unavailable track color
+- 🎚️ Fixed: Passenger Stop and Unreachable Track color pickers now use consistent slider UI
+- 🔧 Improved: Better visual customization options for all track color scenarios
+
+### v1.5.4 (2025-10-30)
 - 🔧 Fixed: Interchange tracks appearing dark gray with LegoTrainMan's Cross Traffic mod
 - 🛡️ Added: Check to skip Cross Traffic's "legos-global-industries" area identifier
 - 🛡️ Added: Guard for inactive industry components
@@ -225,7 +262,7 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 - 🎯 Added: Area registry lookup for accurate industry ownership detection
 - 🎨 Changed: Unreachable tracks now light grey (prevents confusion with red Sylva area)
 - ✅ Fixed: Modded industries showing incorrect colors
-- � Added: Position-based fallback detection
+- ✨ Added: Position-based fallback detection
 
 ### v1.5.3.6 (2025-10-22)
 - 🚦 Added: Signal status display on map with color-coded aspects
