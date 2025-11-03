@@ -1101,10 +1101,10 @@ public class MapEnhancer : MonoBehaviour
 	{
 		private static bool Prefix(ref Color __result)
 		{
-			// When industry area colors are enabled, use light grey for unreachable tracks
+			// When industry area colors are enabled, use custom unreachable color
 			if (Instance?.Settings.EnableIndustryAreaColors ?? true)
 			{
-				__result = new Color(0.7f, 0.7f, 0.7f); // Light grey
+				__result = Instance?.Settings.TrackColorUnreachable ?? Loader.MapEnhancerSettings.TrackColorUnreachableOrig;
 			}
 			else
 			{
@@ -1262,24 +1262,22 @@ public class MapEnhancer : MonoBehaviour
 	{
 		private static void Postfix(ref TrackSegment segment, ref Color __result)
 		{
-			// Only apply if visual-only mode is enabled
-			if (Instance == null || !Instance.Settings.UseVisualOnlyTrackColors) return;
+		// Only apply if visual-only mode is enabled
+		if (Instance == null || !Instance.Settings.UseVisualOnlyTrackColors) return;
 
-			if (!segment.Available)
+		if (!segment.Available)
+		{
+			// When industry area colors are enabled, use custom unreachable color
+			if (Instance.Settings.EnableIndustryAreaColors)
 			{
-				// When industry area colors are enabled, use light grey for unreachable tracks
-				if (Instance.Settings.EnableIndustryAreaColors)
-				{
-					__result = new Color(0.7f, 0.7f, 0.7f); // Light grey
-				}
-				else
-				{
-					__result = Instance.Settings.TrackColorUnavailable;
-				}
-				return;
+				__result = Instance.Settings.TrackColorUnreachable;
 			}
-			
-			// Use HashSet lookups for visual-only mode (don't rely on track class property)
+			else
+			{
+				__result = Instance.Settings.TrackColorUnavailable;
+			}
+			return;
+		}			// Use HashSet lookups for visual-only mode (don't rely on track class property)
 			// Default to branch color
 			__result = Instance.Settings.TrackColorBranch;
 			
