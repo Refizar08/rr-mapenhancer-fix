@@ -13,6 +13,7 @@ using MapEnhancer.UMM;
 using Model;
 using Model.Definition;
 using Model.Ops;
+using Network;
 using RollingStock;
 using System;
 using System.Collections;
@@ -26,6 +27,7 @@ using Track.Signals;
 using UI;
 using UI.Builder;
 using UI.CarInspector;
+using UI.Common;
 using UI.Console.Commands;
 using UI.Map;
 using UnityEngine;
@@ -229,6 +231,23 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	void Update()
+	{
+		if (MapState == MapStates.MAPLOADED && Junctions != null && MapWindow.instance != null)
+		{
+			bool mapWindowShown = MapWindow.instance._window.IsShown;
+			if (Junctions.activeSelf != mapWindowShown)
+			{
+				Junctions.SetActive(mapWindowShown);
+			}
+			
+			if (mapWindowShown && mapSettings == null)
+			{
+				CreateMapSettings();
+			}
+		}
+	}
+
 	void OnDestroy()
 	{
 		Loader.LogDebug("OnDestroy");
@@ -277,6 +296,11 @@ public class MapEnhancer : MonoBehaviour
 		Junctions.SetActive(MapWindow.instance._window.IsShown);
 
 		MapWindow.instance._window.OnShownDidChange += OnMapWindowShown;
+		
+		if (MapWindow.instance._window.IsShown)
+		{
+			Junctions.SetActive(true);
+		}
 
 		GatherTraincarMarkers();
 		traincarColorUpdater = StartCoroutine(TraincarColorUpdater());
@@ -311,23 +335,6 @@ public class MapEnhancer : MonoBehaviour
 
 	private void CleanupIconsAndLabels()
 	{
-		var mi = Resources.FindObjectsOfTypeAll<MapIcon>();
-		var ml = Resources.FindObjectsOfTypeAll<MapLabel>();
-
-		foreach (var m in mi)
-		{
-			var gr = m.GetComponent<GraphicRaycaster>();
-			var cs = m.GetComponent<CanvasScaler>();
-			if (gr) DestroyImmediate(gr);
-			if (cs) DestroyImmediate(cs);
-		}
-		foreach (var m in ml)
-		{
-			var gr = m.GetComponent<GraphicRaycaster>();
-			var cs = m.GetComponent<CanvasScaler>();
-			if (gr) DestroyImmediate(gr);
-			if (cs) DestroyImmediate(cs);
-		}
 	}
 
 	private void OnMapWillUnload(MapWillUnloadEvent evt)
@@ -394,8 +401,10 @@ public class MapEnhancer : MonoBehaviour
 		var settingsGo = new GameObject("Map Settings", typeof(RectTransform));
 		mapSettings = settingsGo.GetComponent<RectTransform>();
 		mapSettings.SetParent(MapWindow.instance._window.transform, false);
-		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 120); // Increased height to fit 4 items
+		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 120);
 		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Right, 4, 145);
+
+		settingsGo.AddComponent<GraphicRaycaster>();
 
 		var panel = UIPanel.Create(mapSettings, FindObjectOfType<ProgrammaticWindowCreator>().builderAssets, builder =>
 		{
@@ -532,7 +541,7 @@ public class MapEnhancer : MonoBehaviour
 			}
 		}
 		
-		Loader.Log($"Reset {switchesReset} switches to normal position");
+		LogSwitchResetAction("Normal", switchesReset);
 	}
 
 	private void ResetAllSwitchesToThrown()
@@ -551,10 +560,55 @@ public class MapEnhancer : MonoBehaviour
 			}
 		}
 		
-		Loader.Log($"Set {switchesReset} switches to thrown position");
+		LogSwitchResetAction("Thrown", switchesReset);
 	}
 
-	private IEnumerator TraincarColorUpdater()
+    private void LogSwitchResetAction(string action, int switchCount)
+    {
+        string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        
+        // Get the player's Steam name from StateManager.Shared._playersManager.LocalPlayer
+        string userName = Environment.UserName.ToLower(); // Fallback
+        try
+        {
+            var playersManager = StateManager.Shared?._playersManager;
+            if (playersManager != null)
+            {
+                var localPlayer = playersManager.LocalPlayer;
+                if (!string.IsNullOrEmpty(localPlayer.Name))
+                {
+                    userName = localPlayer.Name.ToLower();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Loader.Log($"Could not get Steam player name: {ex.Message}");
+        }
+        
+        // Determine action text: "Normal" becomes "Normal", "Thrown" becomes "Reversed"
+        string actionText = action.Equals("Normal", StringComparison.OrdinalIgnoreCase) ? "Normal" : "Reversed";
+        
+        string logMessage = $"{userName} reset switches to {actionText}";
+        
+        // Log to in-game console
+        global::Console.Log(logMessage);
+        
+        // Also log to mod logger (shows in railloader.log)
+        Loader.Log(logMessage);
+        
+        // Log to file with timestamp for permanent record
+        try
+        {
+            string logPath = Path.Combine(Loader.ModEntry.Path, "MapEnhancer_SwitchResets.log");
+            string fileLogMessage = $"[{timestamp}] [Map Enhancer] {logMessage} (Total: {switchCount} switches)";
+            File.AppendAllText(logPath, fileLogMessage + Environment.NewLine);
+        }
+        catch (Exception ex)
+        {
+            Loader.Log($"Failed to write switch reset log to file: {ex.Message}");
+        }
+    }	private IEnumerator TraincarColorUpdater()
 	{
 		for (;;)
 		{
@@ -653,6 +707,18 @@ public class MapEnhancer : MonoBehaviour
 	private void CreateSwitches()
 	{
 		Loader.LogDebug("CreateSwitches");
+		
+		if (TrackObjectManager.Instance == null || TrackObjectManager.Instance._descriptors.switches == null)
+		{
+			return;
+		}
+		
+		int switchCount = TrackObjectManager.Instance._descriptors.switches.Count;
+		if (switchCount == 0)
+		{
+			return;
+		}
+		
 		foreach (var jm in junctionMarkers) Destroy(jm.JunctionMarker);
 		junctionMarkers.Clear();
 		foreach (var kvp in TrackObjectManager.Instance._descriptors.switches)
@@ -1035,10 +1101,10 @@ public class MapEnhancer : MonoBehaviour
 	{
 		private static bool Prefix(ref Color __result)
 		{
-			// When industry area colors are enabled, use light grey for unreachable tracks
+			// When industry area colors are enabled, use custom unreachable color
 			if (Instance?.Settings.EnableIndustryAreaColors ?? true)
 			{
-				__result = new Color(0.7f, 0.7f, 0.7f); // Light grey
+				__result = Instance?.Settings.TrackColorUnreachable ?? Loader.MapEnhancerSettings.TrackColorUnreachableOrig;
 			}
 			else
 			{
@@ -1196,24 +1262,22 @@ public class MapEnhancer : MonoBehaviour
 	{
 		private static void Postfix(ref TrackSegment segment, ref Color __result)
 		{
-			// Only apply if visual-only mode is enabled
-			if (Instance == null || !Instance.Settings.UseVisualOnlyTrackColors) return;
+		// Only apply if visual-only mode is enabled
+		if (Instance == null || !Instance.Settings.UseVisualOnlyTrackColors) return;
 
-			if (!segment.Available)
+		if (!segment.Available)
+		{
+			// When industry area colors are enabled, use custom unreachable color
+			if (Instance.Settings.EnableIndustryAreaColors)
 			{
-				// When industry area colors are enabled, use light grey for unreachable tracks
-				if (Instance.Settings.EnableIndustryAreaColors)
-				{
-					__result = new Color(0.7f, 0.7f, 0.7f); // Light grey
-				}
-				else
-				{
-					__result = Instance.Settings.TrackColorUnavailable;
-				}
-				return;
+				__result = Instance.Settings.TrackColorUnreachable;
 			}
-			
-			// Use HashSet lookups for visual-only mode (don't rely on track class property)
+			else
+			{
+				__result = Instance.Settings.TrackColorUnavailable;
+			}
+			return;
+		}			// Use HashSet lookups for visual-only mode (don't rely on track class property)
 			// Default to branch color
 			__result = Instance.Settings.TrackColorBranch;
 			

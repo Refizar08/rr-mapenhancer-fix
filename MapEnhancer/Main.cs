@@ -111,6 +111,8 @@ public static class Loader
 	public Color TrackColorUnavailable = TrackColorUnavailableOrig;
 	public static readonly Color TrackColorPaxOrig = new Color(0.5f, 0f, 0.5f, 1f); // Purple
 	public Color TrackColorPax = TrackColorPaxOrig;
+	public static readonly Color TrackColorUnreachableOrig = new Color(0.7f, 0.7f, 0.7f, 1f); // Light grey
+	public Color TrackColorUnreachable = TrackColorUnreachableOrig;
 
 	// Feature toggles
 	public bool UseVisualOnlyTrackColors = true; // Visual-only track coloring (doesn't change track classes)
@@ -298,7 +300,7 @@ public static class Loader
 			{
 				GUILayout.Label("  ℹ️ Passenger stops will be highlighted in custom color.", GUILayout.ExpandWidth(true));
 				GUILayout.Label("Passenger Stop Track Color");
-				if (UnityModManager.UI.DrawColor(ref Settings.TrackColorPax)) changed = true;
+				if (DrawColor(ref Settings.TrackColorPax)) changed = true;
 			}
 
 			GUILayout.Space(UnityModManager.UI.Scale(5));
@@ -314,6 +316,8 @@ public static class Loader
 			if (Settings.EnableIndustryAreaColors)
 			{
 				GUILayout.Label("  ℹ️ Industrial tracks will be colored by their area's color.", GUILayout.ExpandWidth(true));
+				GUILayout.Label("Unreachable Track Color (when industry colors enabled)");
+				if (DrawColor(ref Settings.TrackColorUnreachable)) changed = true;
 			}
 			else
 			{
