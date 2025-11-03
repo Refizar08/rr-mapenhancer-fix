@@ -13,6 +13,7 @@ using MapEnhancer.UMM;
 using Model;
 using Model.Definition;
 using Model.Ops;
+using Network;
 using RollingStock;
 using System;
 using System.Collections;
@@ -26,6 +27,7 @@ using Track.Signals;
 using UI;
 using UI.Builder;
 using UI.CarInspector;
+using UI.Common;
 using UI.Console.Commands;
 using UI.Map;
 using UnityEngine;
@@ -539,7 +541,7 @@ public class MapEnhancer : MonoBehaviour
 			}
 		}
 		
-		Loader.Log($"Reset {switchesReset} switches to normal position");
+		LogSwitchResetAction("Normal", switchesReset);
 	}
 
 	private void ResetAllSwitchesToThrown()
@@ -558,10 +560,55 @@ public class MapEnhancer : MonoBehaviour
 			}
 		}
 		
-		Loader.Log($"Set {switchesReset} switches to thrown position");
+		LogSwitchResetAction("Thrown", switchesReset);
 	}
 
-	private IEnumerator TraincarColorUpdater()
+    private void LogSwitchResetAction(string action, int switchCount)
+    {
+        string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        
+        // Get the player's Steam name from StateManager.Shared._playersManager.LocalPlayer
+        string userName = Environment.UserName.ToLower(); // Fallback
+        try
+        {
+            var playersManager = StateManager.Shared?._playersManager;
+            if (playersManager != null)
+            {
+                var localPlayer = playersManager.LocalPlayer;
+                if (!string.IsNullOrEmpty(localPlayer.Name))
+                {
+                    userName = localPlayer.Name.ToLower();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Loader.Log($"Could not get Steam player name: {ex.Message}");
+        }
+        
+        // Determine action text: "Normal" becomes "Normal", "Thrown" becomes "Reversed"
+        string actionText = action.Equals("Normal", StringComparison.OrdinalIgnoreCase) ? "Normal" : "Reversed";
+        
+        string logMessage = $"{userName} reset switches to {actionText}";
+        
+        // Log to in-game console
+        global::Console.Log(logMessage);
+        
+        // Also log to mod logger (shows in railloader.log)
+        Loader.Log(logMessage);
+        
+        // Log to file with timestamp for permanent record
+        try
+        {
+            string logPath = Path.Combine(Loader.ModEntry.Path, "MapEnhancer_SwitchResets.log");
+            string fileLogMessage = $"[{timestamp}] [Map Enhancer] {logMessage} (Total: {switchCount} switches)";
+            File.AppendAllText(logPath, fileLogMessage + Environment.NewLine);
+        }
+        catch (Exception ex)
+        {
+            Loader.Log($"Failed to write switch reset log to file: {ex.Message}");
+        }
+    }	private IEnumerator TraincarColorUpdater()
 	{
 		for (;;)
 		{
