@@ -29,9 +29,10 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 - 🛡️ Improved: Map extension initialization to prevent conflicts with other map mods
 
 #### **Switch Reset Logging & Customizable Colors** (v1.5.4.1)
-- 📝 Logs switch reset actions with player name tracking
+- 📝 Logs switch reset actions with player name tracking (Steam display name)
 - 🔒 Anti-trolling: See who reset switches in multiplayer sessions
-- ⏰ Timestamped file logs
+- ⏰ Triple logging: in-game console, `railloader.log`, and a dedicated per-mod log file
+  - Dedicated file: `Mods/MapEnhancer/MapEnhancer_SwitchResets.log` (created automatically when the first reset is performed)
 - 🎨 Full control over unreachable/unavailable track color when industry area colors enabled
 - 🎚️ Consistent RGBA slider UI for all color pickers
 
