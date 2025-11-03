@@ -224,9 +224,10 @@ Customize colors for all track types with RGBA sliders:
 All feedback, bug reports, and feature requests are welcomed!
 
 - **Discord Forum**: [Map Enhancer Discussion](https://discord.com/channels/795878618697433097/1212693563738034196)
-- **Discord**: [Railroader Discord](https://discord.gg/r8xeTPAnhw)
+- **Railroader Official Discord**: [Join Discord](https://discord.gg/r8xeTPAnhw)
+- **RTM Discord**: [Join Discord](https://discord.gg/zyg4CXg32N)
 - **Issues**: Report bugs on discord forum or [Create issue](https://github.com/Refizar08/rr-mapenhancer-fix/issues)
-- **Maintainer**: reaper8f on Discord
+- **Maintainer**: Reaper8f on Discord
 
 ## 🤝 Contributing
 
