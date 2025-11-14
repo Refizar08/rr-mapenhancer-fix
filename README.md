@@ -1,6 +1,6 @@
 # Map Enhancer - Community Fix Edition
 
-[![Version](https://img.shields.io/badge/version-1.5.4.1-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
+[![Version](https://img.shields.io/badge/version-1.5.4.2-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
 [![Game](https://img.shields.io/badge/Railroader-2025-green.svg)](https://store.steampowered.com/app/1683150/Railroader/)
 
 > **Note:** This is a maintained fork by me with fixes and improvements for Map Enhancer. I had pull from the main repository but provide working updates and bug fixes until Vanguard officially updates the original mod.
@@ -20,6 +20,15 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 ## ✨ Features
 
 ### 🆕 Community Fork Exclusive Features
+
+#### **Modded Spawn Points Support** (v1.5.4.2)
+- 🗺️ Load custom teleport locations from mods via `spawn-points.json` files
+- 🔐 Whitelist system for approved mods
+- 🎯 Modded locations appear under "---- Other ----" separator
+- 🔄 Toggle control: "Additional Locations from Mods" setting (disabled by default)
+- 📥 AR Branch template included with 9 spawn points
+- 🎨 Fixed freight car icon colors for modded map areas (AR Branch, etc.)
+- 🛠️ Robust parsing handles scientific notation and locale differences
 
 #### **AR Branch & For Your Convenience Mod Compatibility Fix** (v1.5.4.1)
 - 🔧 Fixed: AR Branchline mod compatibility issues
@@ -161,6 +170,8 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 
 This fork includes **ALL original Map Enhancer features** plus community improvements:
 
+- 🗺️ **Modded spawn points support** - Load custom teleport locations from mods (v1.5.4.2)
+- 🎨 **Fixed car icon colors** - Freight car delivery status works on modded maps (v1.5.4.2)
 - 🔧 **AR Branch & FYC compatibility** - Fixed switches and map UI issues (v1.5.4.1)
 - 📝 **Switch reset logging** - Track who resets switches in multiplayer (v1.5.4.1)
 - 🎨 **Customizable unreachable track color** - Full control over unavailable track appearance (v1.5.4.1)
@@ -235,7 +246,18 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 
 ## 📜 Version History
 
-### v1.5.4.1 (2025-11-03) - Latest
+### v1.5.4.2 (2025-11-14) - Latest
+
+- 🗺️ Added: Modded spawn points loading system with JSON format support
+- 🔐 Added: `EnableModdedSpawnPoints` setting with whitelist system
+- 🎯 Added: "---- Other ----" separator in teleport dropdown for modded locations
+- 📥 Added: AR Branch spawn-points.json template with 9 locations
+- 🎨 Fixed: Car icon color darkening for modded areas with bright colors (hybrid HSV system)
+- 🛠️ Fixed: Spawn point parsing to handle scientific notation and locale differences
+- ✅ Fixed: Graceful error handling for malformed spawn-points.json entries
+- 🌍 Improved: Culture-independent parsing with detailed error messages
+
+### v1.5.4.1 (2025-11-03)
 
 - 🔧 Fixed: AR Branchline mod compatibility issues
 - 🔧 Fixed: Mod conflict with Zamu.ForYourConvenience (FYC)
