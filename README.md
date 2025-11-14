@@ -24,8 +24,7 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 #### **Turntable Control from Map** (v1.5.4.2)
 - 🎯 Control turntables directly from the map with visual markers
 - 🎮 Three rotation modes: Ctrl+Click (clockwise), Alt+Click (counterclockwise), Shift+Click (180°)
-- 🎨 Customizable semi-transparent markers (default: orange with 40% opacity)
-- ⚙️ Toggle visibility in settings
+- ⚙️ Toggle visibility in settings (controls still work without markers visible)
 - 🔍 Consistent marker sizing at all zoom levels
 - 🎯 Auto-detects valid connected tracks only
 - 📍 Large clickable area for easy interaction
@@ -216,6 +215,7 @@ All settings are available and shown when game first launches.
 
 ### Interaction Settings
 - **Require Double Click**: Toggle for double-click requirement on map interactions
+- **Show Turntable Markers**: Toggle visibility of turntable markers (default: ON)
 
 ### Keyboard Bindings
 - **Toggle Map Size**: Default `Z` (customizable)
