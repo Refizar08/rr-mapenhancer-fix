@@ -21,6 +21,15 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 
 ### 🆕 Community Fork Exclusive Features
 
+#### **Turntable Control from Map** (v1.5.4.2)
+- 🎯 Control turntables directly from the map with visual markers
+- 🎮 Three rotation modes: Ctrl+Click (clockwise), Alt+Click (counterclockwise), Shift+Click (180°)
+- 🎨 Customizable semi-transparent markers (default: orange with 40% opacity)
+- ⚙️ Toggle visibility in settings
+- 🔍 Consistent marker sizing at all zoom levels
+- 🎯 Auto-detects valid connected tracks only
+- 📍 Large clickable area for easy interaction
+
 #### **Modded Spawn Points Support** (v1.5.4.2)
 - 🗺️ Load custom teleport locations from mods via `spawn-points.json` files
 - 🔐 Whitelist system for approved mods
@@ -170,6 +179,7 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 
 This fork includes **ALL original Map Enhancer features** plus community improvements:
 
+- 🎯 **Turntable control from map** - Control turntables with Ctrl/Alt/Shift+Click (v1.5.4.2)
 - 🗺️ **Modded spawn points support** - Load custom teleport locations from mods (v1.5.4.2)
 - 🎨 **Fixed car icon colors** - Freight car delivery status works on modded maps (v1.5.4.2)
 - 🔧 **AR Branch & FYC compatibility** - Fixed switches and map UI issues (v1.5.4.1)
@@ -248,6 +258,8 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 
 ### v1.5.4.2 (2025-11-14) - Latest
 
+- 🎯 Added: Turntable control from map with Ctrl/Alt/Shift+Click rotation modes
+- 🎨 Added: Turntable visual markers with customizable color and opacity
 - 🗺️ Added: Modded spawn points loading system with JSON format support
 - 🔐 Added: `EnableModdedSpawnPoints` setting with whitelist system
 - 🎯 Added: "---- Other ----" separator in teleport dropdown for modded locations

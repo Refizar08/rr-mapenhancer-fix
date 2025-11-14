@@ -45,6 +45,7 @@ public class MapEnhancer : MonoBehaviour
 	public GameObject Junctions;
 	public GameObject JunctionsBranch;
 	public GameObject JunctionsMainline;
+	public GameObject Turntables;
 	private List<Entry> junctionMarkers = new List<Entry>();
 	private CullingGroup cullingGroup;
 	private BoundingSphere[] cullingSpheres;
@@ -91,7 +92,18 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	private static MapIcon _turntablePrefab;
+	public static MapIcon? turntablePrefab
+	{
+		get
+		{
+			if (_turntablePrefab == null) CreateTurntablePrefab();
+			return _turntablePrefab;
+		}
+	}
+
 	private Coroutine traincarColorUpdater;
+	private static List<TurntableHelper> _turntableHelpers = new List<TurntableHelper>();
 
 	private static HashSet<string> _mainlineSegments;
 	private static HashSet<string> _industrialSegments = new HashSet<string>();
@@ -273,9 +285,12 @@ public class MapEnhancer : MonoBehaviour
 
 			if (_traincarPrefab != null) Destroy(_traincarPrefab);
 			_traincarPrefab = null;
+			if (_turntablePrefab != null) Destroy(_turntablePrefab);
+			_turntablePrefab = null;
 
 			DestroyTraincarMarkers();
 			DestroyFlareMarkers();
+			DestroyTurntableMarkers();
 		}
 		MapState = MapStates.MAINMENU;
 	}
@@ -295,6 +310,8 @@ public class MapEnhancer : MonoBehaviour
 		JunctionsMainline.transform.SetParent(Junctions.transform, false);
 		JunctionsBranch = new GameObject("Branch Junctions");
 		JunctionsBranch.transform.SetParent(Junctions.transform, false);
+		Turntables = new GameObject("Turntables");
+		Turntables.transform.SetParent(Junctions.transform, false);
 		Junctions.SetActive(MapWindow.instance._window.IsShown);
 
 		MapWindow.instance._window.OnShownDidChange += OnMapWindowShown;
@@ -308,6 +325,7 @@ public class MapEnhancer : MonoBehaviour
 		traincarColorUpdater = StartCoroutine(TraincarColorUpdater());
 
 		GatherFlareMarkers();
+		GatherTurntables();
 
 		Messenger.Default.Register<WorldDidMoveEvent>(this, new Action<WorldDidMoveEvent>(this.WorldDidMove));
 		var worldPos = WorldTransformer.GameToWorld(new Vector3(0, 0, 0));
@@ -982,6 +1000,61 @@ public class MapEnhancer : MonoBehaviour
 		image.transform.localScale = Vector3.one * scale;
 	}
 
+	private static void CreateTurntablePrefab()
+	{
+		var scale = 2.0f;
+		// Create a subtle circular marker - color from settings
+		var tex = new Texture2D(128, 128, TextureFormat.RGBA32, false);
+		var pixels = new Color[128 * 128];
+			var markerColor = UMM.Loader.Settings.TurntableMarkerColor;		for (int y = 0; y < 128; y++)
+		{
+			for (int x = 0; x < 128; x++)
+			{
+				float dx = (x - 64f) / 64f;
+				float dy = (y - 64f) / 64f;
+				float dist = Mathf.Sqrt(dx * dx + dy * dy);
+				
+				if (dist < 0.9f)
+				{
+					// Fill with settings color at 40% opacity
+					pixels[y * 128 + x] = new Color(
+						markerColor.r,
+						markerColor.g,
+						markerColor.b,
+						markerColor.a * 0.4f
+					);
+				}
+				else if (dist < 1.0f)
+				{
+					// Subtle border - slightly darker at 30% opacity
+					pixels[y * 128 + x] = new Color(
+						markerColor.r * 0.7f,
+						markerColor.g * 0.7f,
+						markerColor.b * 0.7f,
+						markerColor.a * 0.3f
+					);
+				}
+				else
+				{
+					pixels[y * 128 + x] = Color.clear;
+				}
+			}
+		}
+		tex.SetPixels(pixels);
+		tex.Apply();
+		tex.name = "MapTurntableIcon";
+		tex.wrapMode = TextureWrapMode.Clamp;		var sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+		sprite.name = "MapTurntableIcon";
+		
+		_turntablePrefab = Instantiate<MapIcon>(TrainController.Shared.locomotiveMapIconPrefab, prefabHolder.transform);
+		GameObject turntableMarker = _turntablePrefab.gameObject;
+		turntableMarker.hideFlags = HideFlags.HideAndDontSave;
+		turntableMarker.name = "Map Icon Turntable";
+		var image = _turntablePrefab.GetComponentInChildren<Image>();
+		image.sprite = sprite;
+		image.transform.localScale = Vector3.one * scale;
+	}
+
 	public static Sprite? LoadTexture(string fileName, string name)
 	{
 		string iconPath = Path.Combine(Loader.ModEntry.Path, fileName);
@@ -1110,6 +1183,138 @@ public class MapEnhancer : MonoBehaviour
 		{
 			flare.Activate(ObjectPicker.CreateEvent(PickableActivation.Primary));
 		};
+	}
+
+	private void GatherTurntables()
+	{
+		_turntableHelpers.Clear();
+		var turntableControllers = FindObjectsOfType<TurntableController>();
+		
+		foreach (var controller in turntableControllers)
+		{
+			var helper = controller.GetComponent<TurntableHelper>();
+			if (helper == null)
+			{
+				helper = controller.gameObject.AddComponent<TurntableHelper>();
+			}
+			
+			// Set callback to rebuild map after rotation
+			helper.OnRotationComplete = () => 
+			{
+				if (MapWindow.instance != null && MapWindow.instance._window.IsShown)
+				{
+					MapBuilder.Shared.Rebuild();
+				}
+			};
+			
+			_turntableHelpers.Add(helper);
+			AddTurntableMarker(helper);
+		}
+		
+		Loader.LogDebug($"Found {_turntableHelpers.Count} turntables");
+	}
+
+	private void DestroyTurntableMarkers()
+	{
+		foreach (var helper in _turntableHelpers)
+		{
+			if (helper != null && helper.Controller != null)
+			{
+				var marker = helper.Controller.GetComponentInChildren<MapIcon>();
+				if (marker)
+					DestroyImmediate(marker.gameObject);
+			}
+		}
+		_turntableHelpers.Clear();
+	}
+
+	internal static void AddTurntableMarker(TurntableHelper helper)
+	{
+		if (helper == null || helper.Controller == null || helper.Controller.turntable == null)
+			return;
+
+		var mapIcon = Instantiate<MapIcon>(turntablePrefab, Instance.Turntables.transform);
+		var turntablePos = helper.Controller.turntable.transform.position;
+		mapIcon.transform.position = WorldTransformer.GameToWorld(turntablePos) + Vector3.up * 2500f;
+		mapIcon.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+		
+		// Remove text label for cleaner look
+		mapIcon.SetText("");
+		
+		// Add component to override zoom scaling and keep it large
+		var scaleOverride = mapIcon.gameObject.AddComponent<TurntableIconScaleOverride>();
+		
+		// Control visibility based on setting, but always create the marker for click handling
+		var image = mapIcon.GetComponentInChildren<Image>();
+		if (image != null)
+		{
+			image.enabled = UMM.Loader.Settings.ShowTurntableMarkers;
+		}
+		
+		// Increase the RectTransform size for the clickable area
+		var rectTransform = mapIcon.GetComponent<RectTransform>();
+		if (rectTransform != null)
+		{
+			rectTransform.sizeDelta = new Vector2(300f, 300f);
+		}
+		
+		mapIcon.OnClick = delegate
+		{
+			// Detect Shift modifier for 180-degree rotation
+			if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
+			{
+				ShowTurntable180Control(helper);
+				return;
+			}
+			
+			// Detect Alt modifier for counterclockwise rotation
+			bool clockwise = !Input.GetKey(KeyCode.LeftAlt) && !Input.GetKey(KeyCode.RightAlt);
+			ShowTurntableControl(helper, clockwise);
+		};
+	}
+	
+	private static void ShowTurntableControl(TurntableHelper helper, bool clockwise)
+	{
+		if (helper == null || helper.Controller == null)
+			return;
+
+		// Only rotate if Ctrl or Alt is held
+		if (!Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl) && 
+		    !Input.GetKey(KeyCode.LeftAlt) && !Input.GetKey(KeyCode.RightAlt))
+		{
+			Loader.Log("Hold Ctrl+Click for clockwise, Alt+Click for counterclockwise, or Shift+Click for 180° rotation");
+			return;
+		}
+
+		var activeIndexes = helper.ActiveTrackIndexes;
+		if (activeIndexes.Count == 0)
+		{
+			Loader.Log("No active tracks connected to turntable");
+			return;
+		}
+
+		// Use the helper's rotation methods
+		if (clockwise)
+		{
+			helper.RotateClockwise();
+		}
+		else
+		{
+			helper.RotateCounterClockwise();
+		}
+		
+		var direction = clockwise ? "clockwise" : "counterclockwise";
+		Loader.Log($"Rotating turntable {direction}. Hold Ctrl+Click for clockwise, Alt+Click for counterclockwise, or Shift+Click for 180° rotation");
+	}
+
+	private static void ShowTurntable180Control(TurntableHelper helper)
+	{
+		if (helper == null || helper.Controller == null)
+			return;
+
+		// Rotate 180 degrees using the instance method
+		helper.Rotate180();
+		Loader.Log("Rotating turntable 180 degrees to reverse engine");
 	}
 
 	void LateUpdate()
@@ -1490,6 +1695,28 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	private class TurntableIconScaleOverride : MonoBehaviour
+	{
+		private const float FIXED_SCALE = 0.5f;
+		private Image _image;
+		
+		void Start()
+		{
+			_image = GetComponentInChildren<Image>();
+		}
+		
+		void LateUpdate()
+		{
+			// Override any zoom-based scaling by forcing a large fixed scale
+			if (_image != null)
+			{
+				_image.transform.localScale = Vector3.one * FIXED_SCALE;
+			}
+			// Also scale the root for good measure
+			transform.localScale = Vector3.one * FIXED_SCALE;
+		}
+	}
+
 	private class SignalIconColorizer : MonoBehaviour
 	{
 		private CTCSignal signal;
@@ -1537,6 +1764,7 @@ public class MapEnhancer : MonoBehaviour
 		private static void Postfix(MapBuilder __instance)
 		{
 			Instance?.JunctionsBranch?.SetActive(__instance.NormalizedScale <= Loader.Settings.MarkerCutoff);
+			Instance?.Turntables?.SetActive(__instance.NormalizedScale <= Loader.Settings.MarkerCutoff);
 		}
 	}
 
