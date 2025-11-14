@@ -1,5 +1,6 @@
 using HarmonyLib;
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
@@ -116,8 +117,10 @@ public static class Loader
 
 	// Feature toggles
 	public bool UseVisualOnlyTrackColors = true; // Visual-only track coloring (doesn't change track classes)
-	public bool EnablePassengerStopTracking = false; // Track passenger stop segments (requires reload)
-	public bool EnableIndustryAreaColors = true; // Color industrial tracks by their area colors (requires reload)
+	public bool EnablePassengerStopTracking = false; // Track passenger stop segments
+	public bool EnableIndustryAreaColors = true; // Color industrial tracks by their area colors
+	public bool EnableModdedSpawnPoints = false; // Show additional locations from mods in location dropdown
+	public List<string> AllowedSpawnPointMods = new List<string>() { "RTM.AR_Branchline" };
 
 	public override void Save(UnityModManager.ModEntry modEntry)
 		{
@@ -289,7 +292,7 @@ public static class Loader
 			GUILayout.Space(UnityModManager.UI.Scale(5));
 			using (new GUILayout.HorizontalScope())
 			{
-				var paxTracking = GUILayout.Toggle(Settings.EnablePassengerStopTracking, "Enable Passenger Stop Tracking (requires map reload)");
+				var paxTracking = GUILayout.Toggle(Settings.EnablePassengerStopTracking, "Enable Passenger Stop Tracking");
 				if (Settings.EnablePassengerStopTracking != paxTracking)
 				{
 					Settings.EnablePassengerStopTracking = paxTracking;
@@ -306,7 +309,7 @@ public static class Loader
 			GUILayout.Space(UnityModManager.UI.Scale(5));
 			using (new GUILayout.HorizontalScope())
 			{
-				var industryColors = GUILayout.Toggle(Settings.EnableIndustryAreaColors, "Enable Industry Area Colors (requires map reload)");
+				var industryColors = GUILayout.Toggle(Settings.EnableIndustryAreaColors, "Enable Industry Area Colors for Industrial Tracks");
 				if (Settings.EnableIndustryAreaColors != industryColors)
 				{
 					Settings.EnableIndustryAreaColors = industryColors;
@@ -323,9 +326,26 @@ public static class Loader
 			{
 				GUILayout.Label("  ℹ️ Industrial tracks will use the default industrial color.", GUILayout.ExpandWidth(true));
 			}
-		}
 
-		if (changed) Settings.OnChange();
+		GUILayout.Space(UnityModManager.UI.Scale(5));
+		using (new GUILayout.HorizontalScope())
+		{
+			var moddedSpawnPoints = GUILayout.Toggle(Settings.EnableModdedSpawnPoints, "Enable Additional Locations from Mods");
+			if (Settings.EnableModdedSpawnPoints != moddedSpawnPoints)
+			{
+				Settings.EnableModdedSpawnPoints = moddedSpawnPoints;
+				changed = true;
+			}
+		}
+		if (Settings.EnableModdedSpawnPoints)
+		{
+			GUILayout.Label("  ℹ️ Additional locations will appear under '---- Other ----' separator.", GUILayout.ExpandWidth(true));
+		}
+		else
+		{
+			GUILayout.Label("  ℹ️ Only vanilla locations will be shown in the teleport dropdown.", GUILayout.ExpandWidth(true));
+		}
+	}		if (changed) Settings.OnChange();
 
 		static bool DrawColor(ref Color color)
 		{

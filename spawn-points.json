@@ -1,0 +1,40 @@
+{
+  "spawnPoints": [
+    {
+      "name": "Nick Bottom",
+      "position": { "x": 12594.5, "y": 566.41, "z": 8802.17 }
+    },
+    {
+      "name": "Birdtown",
+      "position": { "x": 13061.472, "y": 571.372, "z": 9590.119 }
+    },
+    {
+      "name": "Cherokee",
+      "position": { "x": 17188.516, "y": 608.61, "z": 9723.577 }
+    },
+    {
+      "name": "Ravenford",
+      "position": { "x": 17479.0, "y": 621.0, "z": 15001.0 }
+    },
+    {
+      "name": "Mingo Falls",
+      "position": { "x": 19859.164, "y": 682.042, "z": 16781.129 }
+    },
+    {
+      "name": "Twin Forks",
+      "position": { "x": 21474.0, "y": 776.0, "z": 21408.0 }
+    },
+    {
+      "name": "Wrights Creek",
+      "position": { "x": 20677.027, "y": 686.0, "z": 10972.464 }
+    },
+    {
+      "name": "East Cherokee",
+      "position": { "x": 20766.175, "y": 657.819, "z": 9233.578 }
+    },
+    {
+      "name": "Soco Creek",
+      "position": { "x": 23109.55, "y": 699.348, "z": 9263.708 }
+    }
+  ]
+}

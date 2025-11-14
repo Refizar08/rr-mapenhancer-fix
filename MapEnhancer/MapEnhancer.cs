@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Text.RegularExpressions;
 using TMPro;
 using Track;
 using Track.Signals;
@@ -52,6 +53,7 @@ public class MapEnhancer : MonoBehaviour
 	private UnityEngine.Component? mapCameraTarget;
 	public RectTransform mapSettings;
 	private Sprite dropdownSprite;
+	private HashSet<string> moddedSpawnPointNames = new HashSet<string>(); // Track modded spawn points
 
 	// Holder stops "prefab" from going active immediately
 	private static GameObject _prefabHolder;
@@ -412,21 +414,26 @@ public class MapEnhancer : MonoBehaviour
 			builder.AddField("Follow Mode", builder.AddToggle(() => mapFollowMode, (x) => mapFollowMode = x));
 			TMP_Dropdown? dropdown = null;
 			var teleportLocations = GetTeleportLocations();
-			dropdown = builder.AddDropdown(teleportLocations, 0, (index) =>
+		dropdown = builder.AddDropdown(teleportLocations, 0, (index) =>
+		{
+			// Skip if separator or header clicked
+			if (index == 0 || teleportLocations[index].text.StartsWith("---"))
 			{
-				SpawnPoint spawnPoint = TeleportCommand.SpawnPointFor(teleportLocations[index].text);
-				if (spawnPoint != null && index != 0)
-				{
-					var mapCamera = MapBuilder.Shared.mapCamera.transform;
-					ValueTuple<Vector3, Quaternion> gamePositionRotation = spawnPoint.GamePositionRotation;
-					Vector3 item = gamePositionRotation.Item1;
-					item.y = mapCamera.position.y;
-					mapCamera.position = WorldTransformer.GameToWorld(item);
-					dropdown!.SetValueWithoutNotify(0);
-				}
-			}).GetComponent<TMP_Dropdown>();
-
-		AddLocoSelectorDropdown(builder);
+				dropdown!.SetValueWithoutNotify(0);
+				return;
+			}
+			
+			SpawnPoint spawnPoint = TeleportCommand.SpawnPointFor(teleportLocations[index].text);
+			if (spawnPoint != null)
+			{
+				var mapCamera = MapBuilder.Shared.mapCamera.transform;
+				ValueTuple<Vector3, Quaternion> gamePositionRotation = spawnPoint.GamePositionRotation;
+				Vector3 item = gamePositionRotation.Item1;
+				item.y = mapCamera.position.y;
+				mapCamera.position = WorldTransformer.GameToWorld(item);
+				dropdown!.SetValueWithoutNotify(0);
+			}
+		}).GetComponent<TMP_Dropdown>();		AddLocoSelectorDropdown(builder);
 		AddResetSwitchesDropdown(builder);
 	});
 	settingsGo.AddComponent<Image>().color = new Color(0.1098f, 0.1098f, 0.1098f, 1f);
@@ -490,6 +497,10 @@ public class MapEnhancer : MonoBehaviour
 		List<TMP_Dropdown.OptionData> GetTeleportLocations()
 		{
 			var POIs = GameObject.Find("World/POIs").transform;
+			
+			// Load spawn points from whitelisted mods
+			LoadModSpawnPoints();
+			
 			if (!POIs.Find("Connelly"))
 			{
 				var sp = new GameObject("Connelly", typeof(SpawnPoint)).transform;
@@ -513,15 +524,141 @@ public class MapEnhancer : MonoBehaviour
 
 			var tex = new Texture2D(20, 20);
 			dropdownSprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), Vector3.zero);
-			_teleportLocations.AddRange(SpawnPoint.All.Where(sp => sp.name.ToLower() != "ds").Select(sp => new TMP_Dropdown.OptionData(sp.name, dropdownSprite, locationColorLookup[sp.name])).OrderBy(sp =>
+			
+			// Separate vanilla and modded spawn points
+			var allSpawnPoints = SpawnPoint.All.Where(sp => sp.name.ToLower() != "ds").ToList();
+			var vanillaSpawnPoints = allSpawnPoints.Where(sp => !moddedSpawnPointNames.Contains(sp.name)).ToList();
+			var moddedSpawnPoints = allSpawnPoints.Where(sp => moddedSpawnPointNames.Contains(sp.name)).ToList();
+			
+			// Add vanilla locations first (sorted by color hue)
+			_teleportLocations.AddRange(vanillaSpawnPoints.Select(sp => new TMP_Dropdown.OptionData(sp.name, dropdownSprite, locationColorLookup[sp.name])).OrderBy(sp =>
 			{
 				float h, s, v;
 				Color.RGBToHSV(sp.color, out h, out s, out v);
-
 				return h;
 			}));
-
+			
+			// Add separator and modded locations if any exist and feature is enabled
+			if (Settings.EnableModdedSpawnPoints && moddedSpawnPoints.Count > 0)
+			{
+				// Add separator (non-clickable divider)
+				_teleportLocations.Add(new TMP_Dropdown.OptionData("---- Other ----"));
+				
+				// Add modded locations (sorted alphabetically for easier finding)
+				_teleportLocations.AddRange(moddedSpawnPoints.Select(sp => new TMP_Dropdown.OptionData(sp.name, dropdownSprite, locationColorLookup[sp.name])).OrderBy(sp => sp.text));
+			}
 			return _teleportLocations;
+		}
+	}
+
+	private void LoadModSpawnPoints()
+	{
+		// Clear previous modded spawn points tracking
+					moddedSpawnPointNames.Clear();
+		
+		// Skip if feature is disabled
+		if (!Settings.EnableModdedSpawnPoints)
+		{
+			Loader.LogDebug("Additional locations from mods disabled in settings");
+			return;
+		}
+		
+		if (Settings.AllowedSpawnPointMods == null || Settings.AllowedSpawnPointMods.Count == 0)
+		{
+			Loader.LogDebug("No mods whitelisted for custom locations");
+			return;
+		}
+
+		// Get the Mods directory (assuming Railroader/Mods/)
+		string railroaderPath = Path.GetDirectoryName(Application.dataPath);
+		string modsPath = Path.Combine(railroaderPath, "Mods");
+
+		if (!Directory.Exists(modsPath))
+		{
+			Loader.Log($"Mods directory not found at: {modsPath}");
+			return;
+		}
+
+		var POIs = GameObject.Find("World/POIs").transform;
+		int totalLoaded = 0;
+
+		foreach (string modFolder in Settings.AllowedSpawnPointMods)
+		{
+			string modPath = Path.Combine(modsPath, modFolder);
+			string spawnPointsFile = Path.Combine(modPath, "spawn-points.json");
+
+			if (!File.Exists(spawnPointsFile))
+			{
+				Loader.LogDebug($"No spawn-points.json found in {modFolder}");
+				continue;
+			}
+
+			try
+			{
+				string json = File.ReadAllText(spawnPointsFile);
+				
+				// Simple regex-based parsing for the spawn-points.json format
+				// Updated pattern to handle more float formats including scientific notation
+				var nameMatches = Regex.Matches(json, @"""name""\s*:\s*""([^""]+)""");
+				var posMatches = Regex.Matches(json, @"""position""\s*:\s*\{\s*""x""\s*:\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*""y""\s*:\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*""z""\s*:\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)");
+
+				if (nameMatches.Count == 0 || posMatches.Count == 0)
+				{
+					Loader.Log($"Invalid spawn-points.json format in {modFolder}: no spawn points found");
+					continue;
+				}
+
+				int spawnPointCount = Math.Min(nameMatches.Count, posMatches.Count);
+
+				for (int i = 0; i < spawnPointCount; i++)
+				{
+					string spawnName = nameMatches[i].Groups[1].Value;
+					
+					if (string.IsNullOrEmpty(spawnName))
+					{
+						Loader.Log($"Invalid spawn point data in {modFolder}: missing name");
+						continue;
+					}
+
+					// Parse floats using InvariantCulture to handle different decimal separators
+					if (!float.TryParse(posMatches[i].Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x) ||
+						!float.TryParse(posMatches[i].Groups[2].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float y) ||
+						!float.TryParse(posMatches[i].Groups[3].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z))
+					{
+						Loader.Log($"Invalid position data for spawn point '{spawnName}' in {modFolder}: could not parse coordinates");
+						continue;
+					}
+
+					// Check if spawn point already exists
+					if (POIs.Find(spawnName))
+					{
+						Loader.LogDebug($"Spawn point '{spawnName}' already exists, skipping");
+						continue;
+					}
+
+					// Create the spawn point
+					var sp = new GameObject(spawnName, typeof(SpawnPoint)).transform;
+					sp.SetParent(POIs, false);
+					sp.position = WorldTransformer.GameToWorld(new Vector3(x, y, z));
+					sp.eulerAngles = Vector3.zero; // Default rotation
+
+					// Track this as a modded spawn point
+					moddedSpawnPointNames.Add(spawnName);
+					
+					totalLoaded++;
+					Loader.LogDebug($"Loaded spawn point '{spawnName}' from {modFolder} at ({x}, {y}, {z})");
+				}
+				Loader.Log($"Loaded {spawnPointCount} spawn point(s) from {modFolder}");
+			}
+			catch (Exception ex)
+			{
+				Loader.Log($"Error loading spawn points from {modFolder}: {ex.Message}");
+			}
+		}
+
+		if (totalLoaded > 0)
+		{
+			Loader.Log($"Total spawn points loaded from mods: {totalLoaded}");
 		}
 	}
 
@@ -624,29 +761,48 @@ public class MapEnhancer : MonoBehaviour
 					marker.Text.gameObject.SetActive(!car.IsInBardo);
 					image.gameObject.SetActive(!car.IsInBardo);
 
-					if (car.Archetype.IsFreight())
+				if (car.Archetype.IsFreight())
+				{
+					string text;
+					bool flag;
+					Vector3 vector;
+					OpsCarPosition opsCarPosition;
+					OpsController opsController = OpsController.Shared!;
+					Color color = Color.white;
+
+					if (opsController != null && opsController.TryGetDestinationInfo(car, out text, out flag, out vector, out opsCarPosition))
 					{
-						string text;
-						bool flag;
-						Vector3 vector;
-						OpsCarPosition opsCarPosition;
-						OpsController opsController = OpsController.Shared!;
-						Color color = Color.white;
+						Area area = opsController.AreaForCarPosition(opsCarPosition);
 
-						if (opsController != null && opsController.TryGetDestinationInfo(car, out text, out flag, out vector, out opsCarPosition))
+						if (area) color = area.tagColor;
+						
+						// Check if this is a modded area (has bright colors with maxComponent near 1.0)
+						float maxComponent = color.maxColorComponent;
+						bool isModdedArea = maxComponent >= 0.99f;
+						
+						// For modded areas, the flag appears to be inverted
+						bool shouldDarken = isModdedArea ? flag : !flag;
+						
+						if (shouldDarken)
 						{
-							Area area = opsController.AreaForCarPosition(opsCarPosition);
-
-							if (area) color = area.tagColor;
-							if (!flag)
+							// Darken cars that need attention (undelivered for vanilla, delivered for modded)
+							if (maxComponent < 0.99f)
 							{
-								var intensity = 1 / color.maxColorComponent;
+								// Original method for vanilla areas
+								var intensity = 1 / maxComponent;
 								color *= intensity;
 							}
+							else
+							{
+								// HSV method for modded areas with bright colors
+								Color.RGBToHSV(color, out float h, out float s, out float v);
+								v *= 0.6f; // Reduce brightness to 60%
+								color = Color.HSVToRGB(h, s, v);
+								color.a = 1f; // Preserve full opacity
+							}
 						}
-						image.color = color;
-						
-						yield return null;
+					}
+					image.color = color;						yield return null;
 					}
 				}
 			}
@@ -1577,6 +1733,28 @@ public class MapEnhancer : MonoBehaviour
 			return false;
 		}
 	}
+}
+
+// Data classes for spawn-points.json file format
+[Serializable]
+internal class SpawnPointData
+{
+	public string name;
+	public PositionData position;
+}
+
+[Serializable]
+internal class PositionData
+{
+	public float x;
+	public float y;
+	public float z;
+}
+
+[Serializable]
+internal class SpawnPointsFile
+{
+	public List<SpawnPointData> spawnPoints;
 }
 
 public static class Extensions

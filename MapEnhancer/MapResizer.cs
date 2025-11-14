@@ -10,20 +10,21 @@ namespace MapEnhancer
 	[RequireComponent(typeof(Image))]
 	public class MapResizer : PanelResizer, IPointerDownHandler, IPointerUpHandler, IEventSystemHandler, IDragHandler
 	{
-		private Vector2 originalSize;
-		private float aspect;
-		private Window window;
-		private MapWindow mapWindow;
-		private AspectRatioFitter aspectRatioFitter;
-		private ResizeNotifier notifier;
-		private Vector2 windowMargins;
-		private Camera mapCamera;
-		private Canvas canvas;
-		Vector2 largeWindowPos;
-		Vector2 largeWindowSize;
-		private bool isLarge;
+	private Vector2 originalSize;
+	private float aspect;
+	private Window window;
+	private MapWindow mapWindow;
+	private AspectRatioFitter aspectRatioFitter;
+	private ResizeNotifier notifier;
+	private Vector2 windowMargins;
+	private Camera mapCamera;
+	private Canvas canvas;
+	Vector2 largeWindowPos;
+	Vector2 largeWindowSize;
+	private bool isLarge;
+	private Vector2 defaultSize; // The default/normal size (from WindowSizeMin setting)
 
-		public static MapResizer Create()
+	public static MapResizer Create()
 		{
 			var mapWindow = MapWindow.instance;
 
@@ -46,19 +47,25 @@ namespace MapEnhancer
 			mapCamera = MapBuilder.Shared.mapCamera;
 			canvas = GetComponentInParent<Canvas>().rootCanvas;
 
-			var rect = window._rectTransform.rect;
-			originalSize = rect.size;
+			// Use the window's InitialContentSize which is the vanilla size scaled by UI settings
+			// This respects screen resolution and UI scale from game settings
+			originalSize = window.InitialContentSize + new Vector2(48f, 48f); // Add typical window frame margins
 			var scale = MapEnhancer.Instance.Settings.WindowSizeMin / 800f;
-			minSize = new Vector2(rect.width * scale, rect.height * scale);
-			aspect = rect.width / rect.height;
+			defaultSize = new Vector2(originalSize.x * scale, originalSize.y * scale);
+			minSize = defaultSize; // Keep minSize for compatibility
+			aspect = originalSize.x / originalSize.y;
 			windowMargins = originalSize - window.InitialContentSize;
 
-			_windowRectTransform.sizeDelta = minSize;
+			// Reset to default size on startup
+			_windowRectTransform.sizeDelta = defaultSize;
+			
+			// Allow users to resize down to 50% of the default size for more flexibility
+			// This gives extra room for users who want a very small map window
+			var absoluteMinSize = defaultSize * 0.5f;
+			base.minSize = absoluteMinSize;
 
 			var canvasRect = _windowRectTransform.parent.GetComponent<RectTransform>().rect;
-			largeWindowSize = canvasRect.size * 0.75f;
-
-			notifier = canvas.gameObject.AddComponent<ResizeNotifier>();
+			largeWindowSize = canvasRect.size * 0.75f;			notifier = canvas.gameObject.AddComponent<ResizeNotifier>();
 			notifier.RectTransformDimensionsChanged += OnRectCanvasTransformChanged;
 
 			AdjustRenderTexture();
@@ -74,19 +81,32 @@ namespace MapEnhancer
 				windowRectTransform.sizeDelta = parentRectTransform.sizeDelta;
 		}
 		
-		new public void OnPointerDown(PointerEventData data)
-		{
-			UpdateWindowSize();
-			base.OnPointerDown(data);
-		}
+	new public void OnPointerDown(PointerEventData data)
+	{
+		UpdateWindowSize();
+		base.OnPointerDown(data);
+	}
 
-		public void OnPointerUp(PointerEventData data)
-		{
-			if (isLarge)
-				largeWindowSize = _windowRectTransform.sizeDelta;
-		}
+	new public void OnDrag(PointerEventData data)
+	{
+		// Call base class to handle the actual resize logic
+		base.OnDrag(data);
+		
+		// Update render texture during drag to prevent blur/pixelation
+		AdjustRenderTexture();
+	}
 
-
+	new public void OnPointerUp(PointerEventData data)
+	{
+		// Call base class to handle pointer up logic
+		base.OnPointerUp(data);
+		
+		if (isLarge)
+			largeWindowSize = _windowRectTransform.sizeDelta;
+		
+		// Final render texture update after drag completes
+		AdjustRenderTexture();
+	}
 		void UpdateWindowSize()
 		{
 			Rect canvasRect = _windowRectTransform.parent.GetComponent<RectTransform>().rect;
@@ -154,19 +174,21 @@ namespace MapEnhancer
 			rect.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Bottom, 4f, 22f);
 		}
 
-		public void SetMinimumSize(float size)
+	public void SetMinimumSize(float size)
+	{
+		if (window == null) return;
+		defaultSize = originalSize * (size/800f);
+		minSize = defaultSize; // Keep minSize for compatibility
+		
+		// Update absolute minimum to 50% of new default size
+		base.minSize = defaultSize * 0.5f;
+
+		if (!isLarge)
 		{
-			if (window == null) return;
-			minSize = originalSize * (size/800f);
-
-			if (!isLarge)
-			{
-				var windowRectTransform = window._rectTransform;
-				windowRectTransform.sizeDelta = minSize;
-			}
+			var windowRectTransform = window._rectTransform;
+			windowRectTransform.sizeDelta = defaultSize;
 		}
-
-		public void Toggle()
+	}		public void Toggle()
 		{
 			if (window == null)
 			{
@@ -192,9 +214,9 @@ namespace MapEnhancer
 			}
 			else
 			{
-				largeWindowPos = _windowRectTransform.anchoredPosition;
-				_windowRectTransform.anchoredPosition = Vector2.zero;
-				_windowRectTransform.sizeDelta = minSize;
+			largeWindowPos = _windowRectTransform.anchoredPosition;
+			_windowRectTransform.anchoredPosition = Vector2.zero;
+			_windowRectTransform.sizeDelta = defaultSize; // Use defaultSize, not minSize
 			}
 			if (isShown)
 				window.ClampToParentBounds();
