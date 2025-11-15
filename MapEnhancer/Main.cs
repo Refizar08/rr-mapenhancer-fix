@@ -119,8 +119,7 @@ public static class Loader
 	public bool UseVisualOnlyTrackColors = true; // Visual-only track coloring (doesn't change track classes)
 	public bool EnablePassengerStopTracking = false; // Track passenger stop segments
 	public bool EnableIndustryAreaColors = true; // Color industrial tracks by their area colors
-	public bool EnableModdedSpawnPoints = false; // Show additional locations from mods in location dropdown
-	public List<string> AllowedSpawnPointMods = new List<string>() { "RTM.AR_Branchline" };
+	public bool EnableModdedSpawnPoints = false; // Show additional locations from mods in location dropdown (auto-discovers all mods with spawn-points.json)
 	
 	// Turntable marker settings
 	public bool ShowTurntableMarkers = true; // Show clickable markers on turntables
@@ -276,19 +275,24 @@ public static class Loader
 			}
 
 			GUILayout.Space(UnityModManager.UI.Scale(5));
-			GUILayout.Label("Mainline Track Color");
+			GUILayout.Label("Mainline Track Color (⚠️ Alpha not supported for tracks)");
 			if (DrawColor(ref Settings.TrackColorMainline)) changed = true;
-			GUILayout.Label("Branch/Yard Track Color");
+			GUILayout.Label("Branch/Yard Track Color (⚠️ Alpha not supported for tracks)");
 			if (DrawColor(ref Settings.TrackColorBranch)) changed = true;
-			GUILayout.Label("Industry Track Color");
+			GUILayout.Label("Industry Track Color (⚠️ Alpha not supported for tracks)");
 			if (DrawColor(ref Settings.TrackColorIndustrial)) changed = true;
-			GUILayout.Label("Unavailable Track Color");
+			GUILayout.Label("Unavailable Track Color (⚠️ Alpha not supported for tracks)");
 			if (DrawColor(ref Settings.TrackColorUnavailable)) changed = true;
 
 			GUILayout.Space(UnityModManager.UI.Scale(10));
 			GUILayout.Label("--- Optional Features ---", GUILayout.ExpandWidth(true));
 			
+			// Visual-only mode is now permanently enabled (UI toggle disabled)
+			// TODO: Remove all non-visual-only mode code when ready to clean up
 			GUILayout.Space(UnityModManager.UI.Scale(5));
+			GUILayout.Label("ℹ️ Visual-Only Track Coloring: ENABLED (track classes remain unchanged)", GUILayout.ExpandWidth(true));
+			
+			/* DISABLED - Visual-only mode is now permanent
 			using (new GUILayout.HorizontalScope())
 			{
 				var visualOnly = GUILayout.Toggle(Settings.UseVisualOnlyTrackColors, "Use Visual-Only Track Coloring (doesn't modify track classes)");
@@ -302,6 +306,7 @@ public static class Loader
 			{
 				GUILayout.Label("  ℹ️ Track colors are visual only. Track classes remain unchanged.", GUILayout.ExpandWidth(true));
 			}
+			*/
 
 			GUILayout.Space(UnityModManager.UI.Scale(5));
 			using (new GUILayout.HorizontalScope())
@@ -333,7 +338,7 @@ public static class Loader
 			if (Settings.EnableIndustryAreaColors)
 			{
 				GUILayout.Label("  ℹ️ Industrial tracks will be colored by their area's color.", GUILayout.ExpandWidth(true));
-				GUILayout.Label("Unreachable Track Color (when industry colors enabled)");
+				GUILayout.Label("Unreachable Track Color (⚠️ Alpha not supported for tracks)");
 				if (DrawColor(ref Settings.TrackColorUnreachable)) changed = true;
 			}
 			else
@@ -359,7 +364,60 @@ public static class Loader
 		{
 			GUILayout.Label("  ℹ️ Only vanilla locations will be shown in the teleport dropdown.", GUILayout.ExpandWidth(true));
 		}
+		
+		// Reset to Defaults button
+		GUILayout.Space(UnityModManager.UI.Scale(15));
+		GUILayout.Label("--- Reset Settings ---", GUILayout.ExpandWidth(true));
+		GUILayout.Space(UnityModManager.UI.Scale(5));
+		
+		if (GUILayout.Button("Reset All Settings to Default", GUILayout.Width(UnityModManager.UI.Scale(300))))
+		{
+			ResetSettingsToDefault();
+			changed = true;
+		}
+		GUILayout.Label("  ⚠️ This will reset ALL settings including colors, scales, keybinds, and feature toggles.", GUILayout.ExpandWidth(true));
 	}		if (changed) Settings.OnChange();
+
+		static void ResetSettingsToDefault()
+		{
+			// Reset keybinds
+			Settings.mapToggle = new KeyBinding() { keyCode = KeyCode.Z };
+			Settings.mapFollow = new KeyBinding() { modifiers = 1, keyCode = KeyCode.Z };
+			Settings.mapRecenter = new KeyBinding() { modifiers = 2, keyCode = KeyCode.Z };
+			
+			// Reset boolean settings
+			Settings.DoubleClick = false;
+			Settings.ShowTurntableMarkers = true;
+			
+			// Reset scale and size settings
+			Settings.FlareScale = 0.6f;
+			Settings.JunctionMarkerScale = 0.6f;
+			Settings.MarkerCutoff = 0.12f;
+			Settings.WindowSizeMin = 800f;
+			Settings.MapZoomMin = 50f;
+			Settings.MapZoomMax = 10000f;
+			Settings.TrackLineThickness = 1.25f;
+			Settings.MSAA = MsaaQuality._4x;
+			
+			// Reset track colors
+			Settings.TrackColorMainline = MapEnhancerSettings.TrackColorMainlineOrig;
+			Settings.TrackColorBranch = MapEnhancerSettings.TrackColorBranchOrig;
+			Settings.TrackColorIndustrial = MapEnhancerSettings.TrackColorIndustrialOrig;
+			Settings.TrackColorUnavailable = MapEnhancerSettings.TrackColorUnavailableOrig;
+			Settings.TrackColorPax = MapEnhancerSettings.TrackColorPaxOrig;
+			Settings.TrackColorUnreachable = MapEnhancerSettings.TrackColorUnreachableOrig;
+			
+			// Reset feature toggles
+			Settings.UseVisualOnlyTrackColors = true;
+			Settings.EnablePassengerStopTracking = false;
+			Settings.EnableIndustryAreaColors = true;
+			Settings.EnableModdedSpawnPoints = false;
+			
+			// Reset turntable marker color
+			Settings.TurntableMarkerColor = new Color(0.8f, 0.5f, 0.2f, 0.4f);
+			
+			Log("All settings have been reset to their default values.");
+		}
 
 		static bool DrawColor(ref Color color)
 		{

@@ -55,6 +55,7 @@ public class MapEnhancer : MonoBehaviour
 	public RectTransform mapSettings;
 	private Sprite dropdownSprite;
 	private HashSet<string> moddedSpawnPointNames = new HashSet<string>(); // Track modded spawn points
+	private static Dictionary<string, List<string>> _spawnPointCategories = new Dictionary<string, List<string>>(); // Category -> spawn point names
 
 	// Holder stops "prefab" from going active immediately
 	private static GameObject _prefabHolder;
@@ -156,9 +157,10 @@ public class MapEnhancer : MonoBehaviour
 		Loader.LogDebug($"Identified {_mainlineSegments.Count} mainline segments and {_mainlineSwitches.Count} mainline switches");
 	}
 
+	// TODO: Remove this entire method when cleaning up non-visual-only mode code
 	private static void ReclassifyAllTrackSegments()
 	{
-		// Skip if using visual-only mode
+		// Skip if using visual-only mode (now always true)
 		if (Instance?.Settings.UseVisualOnlyTrackColors ?? false)
 		{
 			Loader.LogDebug("Skipping track reclassification - visual-only mode enabled");
@@ -198,9 +200,10 @@ public class MapEnhancer : MonoBehaviour
 		Loader.LogDebug($"Reclassified {segments.Length} track segments: {mainlineCount} mainline, {branchCount} branch, {industrialCount} industrial preserved, {preservedCount} total preserved");
 	}
 
+	// TODO: Remove this entire method when cleaning up non-visual-only mode code
 	private static void ReclassifyIndustrialTracks()
 	{
-		// Skip if using visual-only mode
+		// Skip if using visual-only mode (now always true)
 		if (Instance?.Settings.UseVisualOnlyTrackColors ?? false)
 		{
 			Loader.LogDebug("Skipping industrial track reclassification - visual-only mode enabled");
@@ -369,6 +372,7 @@ public class MapEnhancer : MonoBehaviour
 		_passengerStopSegments.Clear();
 		_industrialSegments.Clear();
 		_industrialSegmentColors.Clear();
+		_spawnPointCategories.Clear();
 		
 		Messenger.Default.Unregister<WorldDidMoveEvent>(this);
 		if (cullingGroup != null)
@@ -556,14 +560,25 @@ public class MapEnhancer : MonoBehaviour
 				return h;
 			}));
 			
-			// Add separator and modded locations if any exist and feature is enabled
+			// Add modded locations grouped by category if any exist and feature is enabled
 			if (Settings.EnableModdedSpawnPoints && moddedSpawnPoints.Count > 0)
 			{
-				// Add separator (non-clickable divider)
-				_teleportLocations.Add(new TMP_Dropdown.OptionData("---- Other ----"));
+				// Sort categories alphabetically
+				var sortedCategories = _spawnPointCategories.Keys.OrderBy(k => k).ToList();
 				
-				// Add modded locations (sorted alphabetically for easier finding)
-				_teleportLocations.AddRange(moddedSpawnPoints.Select(sp => new TMP_Dropdown.OptionData(sp.name, dropdownSprite, locationColorLookup[sp.name])).OrderBy(sp => sp.text));
+				foreach (var category in sortedCategories)
+				{
+					var categorySpawnPoints = _spawnPointCategories[category];
+					// Only add category if it has spawn points that were actually loaded
+					var validSpawnPoints = moddedSpawnPoints.Where(sp => categorySpawnPoints.Contains(sp.name)).ToList();
+					if (validSpawnPoints.Count > 0)
+					{
+						// Add category separator
+						_teleportLocations.Add(new TMP_Dropdown.OptionData($"--- {category} ---"));
+						// Add spawn points in this category (sorted alphabetically)
+						_teleportLocations.AddRange(validSpawnPoints.Select(sp => new TMP_Dropdown.OptionData(sp.name, dropdownSprite, locationColorLookup[sp.name])).OrderBy(sp => sp.text));
+					}
+				}
 			}
 			return _teleportLocations;
 		}
@@ -573,17 +588,12 @@ public class MapEnhancer : MonoBehaviour
 	{
 		// Clear previous modded spawn points tracking
 					moddedSpawnPointNames.Clear();
+		_spawnPointCategories.Clear();
 		
 		// Skip if feature is disabled
 		if (!Settings.EnableModdedSpawnPoints)
 		{
 			Loader.LogDebug("Additional locations from mods disabled in settings");
-			return;
-		}
-		
-		if (Settings.AllowedSpawnPointMods == null || Settings.AllowedSpawnPointMods.Count == 0)
-		{
-			Loader.LogDebug("No mods whitelisted for custom locations");
 			return;
 		}
 
@@ -600,31 +610,43 @@ public class MapEnhancer : MonoBehaviour
 		var POIs = GameObject.Find("World/POIs").transform;
 		int totalLoaded = 0;
 
-		foreach (string modFolder in Settings.AllowedSpawnPointMods)
-		{
-			string modPath = Path.Combine(modsPath, modFolder);
-			string spawnPointsFile = Path.Combine(modPath, "spawn-points.json");
+		// Auto-discover all mods with spawn-points.json files
+		var modFolders = Directory.GetDirectories(modsPath);
+		Loader.LogDebug($"Scanning {modFolders.Length} mod folders for spawn-points.json files");
 
-			if (!File.Exists(spawnPointsFile))
+	foreach (string modFolderPath in modFolders)
+	{
+		string modFolderName = Path.GetFileName(modFolderPath);
+		string spawnPointsFile = Path.Combine(modFolderPath, "spawn-points.json");
+
+		if (!File.Exists(spawnPointsFile))
+		{
+			Loader.LogDebug($"No spawn-points.json found in {modFolderName}");
+			continue;
+		}
+
+		try
+		{
+			string json = File.ReadAllText(spawnPointsFile);
+			
+			// Extract title (optional field, defaults to mod folder name)
+			string categoryTitle = modFolderName;
+			var titleMatch = Regex.Match(json, @"""title""\s*:\s*""([^""]+)""");
+			if (titleMatch.Success)
 			{
-				Loader.LogDebug($"No spawn-points.json found in {modFolder}");
+				categoryTitle = titleMatch.Groups[1].Value;
+			}
+			
+			// Simple regex-based parsing for the spawn-points.json format
+			// Updated pattern to handle more float formats including scientific notation
+			var nameMatches = Regex.Matches(json, @"""name""\s*:\s*""([^""]+)""");
+			var posMatches = Regex.Matches(json, @"""position""\s*:\s*\{\s*""x""\s*:\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*""y""\s*:\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*""z""\s*:\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)");
+
+			if (nameMatches.Count == 0 || posMatches.Count == 0)
+			{
+				Loader.Log($"Invalid spawn-points.json format in {modFolderName}: no spawn points found");
 				continue;
 			}
-
-			try
-			{
-				string json = File.ReadAllText(spawnPointsFile);
-				
-				// Simple regex-based parsing for the spawn-points.json format
-				// Updated pattern to handle more float formats including scientific notation
-				var nameMatches = Regex.Matches(json, @"""name""\s*:\s*""([^""]+)""");
-				var posMatches = Regex.Matches(json, @"""position""\s*:\s*\{\s*""x""\s*:\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*""y""\s*:\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*""z""\s*:\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)");
-
-				if (nameMatches.Count == 0 || posMatches.Count == 0)
-				{
-					Loader.Log($"Invalid spawn-points.json format in {modFolder}: no spawn points found");
-					continue;
-				}
 
 				int spawnPointCount = Math.Min(nameMatches.Count, posMatches.Count);
 
@@ -634,7 +656,7 @@ public class MapEnhancer : MonoBehaviour
 					
 					if (string.IsNullOrEmpty(spawnName))
 					{
-						Loader.Log($"Invalid spawn point data in {modFolder}: missing name");
+						Loader.Log($"Invalid spawn point data in {modFolderName}: missing name");
 						continue;
 					}
 
@@ -643,7 +665,7 @@ public class MapEnhancer : MonoBehaviour
 						!float.TryParse(posMatches[i].Groups[2].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float y) ||
 						!float.TryParse(posMatches[i].Groups[3].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z))
 					{
-						Loader.Log($"Invalid position data for spawn point '{spawnName}' in {modFolder}: could not parse coordinates");
+						Loader.Log($"Invalid position data for spawn point '{spawnName}' in {modFolderName}: could not parse coordinates");
 						continue;
 					}
 
@@ -660,21 +682,25 @@ public class MapEnhancer : MonoBehaviour
 					sp.position = WorldTransformer.GameToWorld(new Vector3(x, y, z));
 					sp.eulerAngles = Vector3.zero; // Default rotation
 
-					// Track this as a modded spawn point
+					// Track this as a modded spawn point with its category
 					moddedSpawnPointNames.Add(spawnName);
+					// Store category mapping for dropdown grouping
+					if (!_spawnPointCategories.ContainsKey(categoryTitle))
+					{
+						_spawnPointCategories[categoryTitle] = new List<string>();
+					}
+					_spawnPointCategories[categoryTitle].Add(spawnName);
 					
 					totalLoaded++;
-					Loader.LogDebug($"Loaded spawn point '{spawnName}' from {modFolder} at ({x}, {y}, {z})");
+					Loader.LogDebug($"Loaded spawn point '{spawnName}' from {modFolderName} at ({x}, {y}, {z})");
 				}
-				Loader.Log($"Loaded {spawnPointCount} spawn point(s) from {modFolder}");
-			}
-			catch (Exception ex)
-			{
-				Loader.Log($"Error loading spawn points from {modFolder}: {ex.Message}");
-			}
+			Loader.Log($"Loaded {spawnPointCount} spawn point(s) from {modFolderName}");
 		}
-
-		if (totalLoaded > 0)
+		catch (Exception ex)
+		{
+			Loader.Log($"Error loading spawn points from {modFolderName}: {ex.Message}");
+		}
+	}		if (totalLoaded > 0)
 		{
 			Loader.Log($"Total spawn points loaded from mods: {totalLoaded}");
 		}
@@ -1424,6 +1450,7 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	// TODO: Remove this entire patch when cleaning up non-visual-only mode code
 	[HarmonyPatch(typeof(MapBuilder), nameof(MapBuilder.TrackColorMainline), MethodType.Getter)]
 	private static class TrackColorMainlinePatch
 	{
@@ -1435,6 +1462,7 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	// TODO: Remove this entire patch when cleaning up non-visual-only mode code
 	[HarmonyPatch(typeof(MapBuilder), nameof(MapBuilder.TrackColorBranch), MethodType.Getter)]
 	private static class TrackColorBranchPatch
 	{
@@ -1446,23 +1474,30 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	// TODO: Remove this entire patch when cleaning up non-visual-only mode code
 	[HarmonyPatch(typeof(MapBuilder), nameof(MapBuilder.TrackColorIndustrial), MethodType.Getter)]
 	private static class TrackColorIndustrialPatch
 	{
 		private static bool Prefix(ref Color __result)
 		{
+			// NOTE: This patch applies in non-visual-only mode (now deprecated)
+			// When EnableIndustryAreaColors is true, this is only used as fallback
+			// (actual colors come from _industrialSegmentColors in IndustryTrackClassPatch)
 			__result = Instance?.Settings.TrackColorIndustrial ?? Loader.MapEnhancerSettings.TrackColorIndustrialOrig;
 
 			return false;
 		}
 	}
 
+	// TODO: Remove this entire patch when cleaning up non-visual-only mode code
 	[HarmonyPatch(typeof(MapBuilder), nameof(MapBuilder.TrackColorUnavailable), MethodType.Getter)]
 	private static class TrackColorUnavailablePatch
 	{
 		private static bool Prefix(ref Color __result)
 		{
+			// NOTE: This patch applies in non-visual-only mode (now deprecated)
 			// When industry area colors are enabled, use custom unreachable color
+			// WARNING: Alpha channel is NOT supported by the game's track LineRenderer
 			if (Instance?.Settings.EnableIndustryAreaColors ?? true)
 			{
 				__result = Instance?.Settings.TrackColorUnreachable ?? Loader.MapEnhancerSettings.TrackColorUnreachableOrig;
@@ -1476,12 +1511,13 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	// TODO: Remove this entire patch when cleaning up non-visual-only mode code
 	[HarmonyPatch(typeof(TrackSegment), nameof(TrackSegment.Awake))]
 	private static class SegmentTrackClassPatch
 	{
 		private static void Postfix(TrackSegment __instance)
 		{
-			// Skip track class modification if using visual-only mode
+			// Skip track class modification if using visual-only mode (now always true)
 			if (Instance?.Settings.UseVisualOnlyTrackColors ?? false)
 				return;
 				
@@ -1500,6 +1536,7 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	// TODO: Remove track class modification code when cleaning up non-visual-only mode
 	[HarmonyPatch(typeof(IndustryComponent), nameof(IndustryComponent.Start))]
 	private static class IndustryTrackClassPatch
 	{
@@ -1586,7 +1623,8 @@ public class MapEnhancer : MonoBehaviour
 							// Store the area color for this segment
 							_industrialSegmentColors[seg.id] = industryColor;
 							
-							// Only modify track class if not using visual-only mode
+							// TODO: Remove this entire if block when cleaning up non-visual-only mode
+							// Only modify track class if not using visual-only mode (now always true)
 							if (Instance == null || !Instance.Settings.UseVisualOnlyTrackColors)
 							{
 								seg.trackClass = Track.TrackClass.Industrial;
@@ -1624,8 +1662,11 @@ public class MapEnhancer : MonoBehaviour
 		private static void Postfix(ref TrackSegment segment, ref Color __result)
 		{
 		// Only apply if visual-only mode is enabled
+		// When visual-only mode is OFF, the TrackColor*Patch methods handle coloring
 		if (Instance == null || !Instance.Settings.UseVisualOnlyTrackColors) return;
 
+		// WARNING: Alpha channel is NOT supported by the game's track LineRenderer
+		// Track segments use an opaque shader that ignores alpha values
 		if (!segment.Available)
 		{
 			// When industry area colors are enabled, use custom unreachable color
@@ -1648,24 +1689,23 @@ public class MapEnhancer : MonoBehaviour
 				__result = Instance.Settings.TrackColorMainline;
 			}
 			
-			// Check industrial (industry tracks override mainline/branch)
-			// BUT: Never show industrial if this is a passenger stop (even if tracking disabled)
-			if (_industrialSegments.Contains(segment.id) 
-				&& !_mainlineSegments.Contains(segment.id)
-				&& !_passengerStopSegments.Contains(segment.id))
+		// Check industrial (industry tracks override mainline/branch)
+		// BUT: Never show industrial if this is a passenger stop (even if tracking disabled)
+		if (_industrialSegments.Contains(segment.id) 
+			&& !_mainlineSegments.Contains(segment.id)
+			&& !_passengerStopSegments.Contains(segment.id))
+		{
+			// Check if area colors are enabled before using cached colors
+			if (Instance.Settings.EnableIndustryAreaColors && 
+			    _industrialSegmentColors.TryGetValue(segment.id, out Color segmentColor))
 			{
-				// Use cached area color for this industrial segment
-				if (_industrialSegmentColors.TryGetValue(segment.id, out Color segmentColor))
-				{
-					__result = segmentColor;
-				}
-				else
-				{
-					__result = Instance.Settings.TrackColorIndustrial;
-				}
+				__result = segmentColor;
 			}
-			
-			// Check passenger stops (shows purple ONLY if tracking enabled)
+			else
+			{
+				__result = Instance.Settings.TrackColorIndustrial;
+			}
+		}			// Check passenger stops (shows purple ONLY if tracking enabled)
 			if (Instance.Settings.EnablePassengerStopTracking && _passengerStopSegments.Contains(segment.id))
 			{
 				__result = Instance.Settings.TrackColorPax;
