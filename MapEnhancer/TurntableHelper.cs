@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+using Game.State;
 using HarmonyLib;
+using Helpers;
 using Track;
 using UnityEngine;
 using MapEnhancer.UMM;
@@ -12,24 +14,26 @@ public class TurntableHelper : MonoBehaviour
     private TurntableController _controller;
     private List<TrackNode> _nodes;
     private HashSet<int> _activeIndexes;
+    private bool _isInitialized = false;
 
     public TurntableController Controller => _controller;
     public List<int> ActiveTrackIndexes => _activeIndexes?.ToList() ?? new List<int>();
+    public bool IsInitialized => _isInitialized;
 
     public void Awake()
     {
         _controller = GetComponent<TurntableController>();
         if (_controller == null || _controller.turntable == null)
         {
-            Loader.Log("TurntableHelper: No controller or turntable found");
+            Loader.Log($"TurntableHelper initialization FAILED: No controller or turntable found on {gameObject.name}");
             return;
         }
 
         // Get the private nodes list from turntable
         _nodes = Traverse.Create(_controller.turntable).Field<List<TrackNode>>("nodes").Value;
-        if (_nodes == null)
+        if (_nodes == null || _nodes.Count == 0)
         {
-            Loader.Log("TurntableHelper: No nodes found");
+            Loader.Log($"TurntableHelper initialization FAILED: No nodes found for turntable at {_controller.turntable.transform.position}");
             return;
         }
 
@@ -38,48 +42,113 @@ public class TurntableHelper : MonoBehaviour
         for (var i = 0; i < _nodes.Count; i++)
         {
             var j = (i + _nodes.Count / 2) % _nodes.Count;
-            if (Graph.Shared.SegmentsConnectedTo(_nodes[i]).Count == 0 &&
-                Graph.Shared.SegmentsConnectedTo(_nodes[j]).Count == 0)
+            var nodeIConnections = Graph.Shared.SegmentsConnectedTo(_nodes[i]).Count;
+            var nodeJConnections = Graph.Shared.SegmentsConnectedTo(_nodes[j]).Count;
+            
+            if (nodeIConnections > 0 || nodeJConnections > 0)
             {
-                continue;
+                _activeIndexes.Add(i);
+                _activeIndexes.Add(j);
             }
-
-            _activeIndexes.Add(i);
-            _activeIndexes.Add(j);
         }
 
-        Loader.LogDebug($"TurntableHelper: Found {_activeIndexes.Count} active track connections");
+        var position = _controller.turntable.transform.position;
+        _isInitialized = true;
+        Loader.Log($"Turntable initialized at ({position.x:F2}, {position.y:F2}, {position.z:F2}) with {_activeIndexes.Count} active track connections");
     }
 
     private float? _targetAngle;
     private int _targetIndex;
     public System.Action OnRotationComplete;
 
+    // Anti-spam safeguards
+    private bool _isRotating = false;
+    private float _lastRotationTime = 0f;
+    private const float ROTATION_COOLDOWN = 0.5f; // Minimum 0.5 seconds between rotations
+
     public void MoveToIndex(int trackNodeIndex)
     {
-        if (_controller == null || _controller.turntable == null)
+        // Anti-spam check: prevent rapid-fire rotations
+        if (_isRotating)
         {
-            Loader.Log("TurntableHelper: Cannot move - no controller");
+            Loader.LogDebug("TurntableHelper: Rotation already in progress, ignoring command");
             return;
         }
 
-        _targetIndex = trackNodeIndex;
-        _targetAngle = _controller.turntable.AngleForIndex(trackNodeIndex);
-        Loader.LogDebug($"TurntableHelper: Moving to index {trackNodeIndex}, angle {_targetAngle}");
+        float timeSinceLastRotation = Time.time - _lastRotationTime;
+        if (timeSinceLastRotation < ROTATION_COOLDOWN)
+        {
+            Loader.LogDebug($"TurntableHelper: Cooldown active ({ROTATION_COOLDOWN - timeSinceLastRotation:F2}s remaining)");
+            return;
+        }
+
+        if (_controller == null || _controller.turntable == null)
+        {
+            Loader.Log("Turntable rotation FAILED: No controller available");
+            return;
+        }
+
+        if (_nodes == null || trackNodeIndex < 0 || trackNodeIndex >= _nodes.Count)
+        {
+            Loader.Log($"Turntable rotation FAILED: Invalid track node index {trackNodeIndex}");
+            return;
+        }
+
+        // Mark as rotating and update timestamp
+        _isRotating = true;
+        _lastRotationTime = Time.time;
+
+        // MULTIPLAYER FIX: Use the game's networked IPickable system
+        // This is how the in-game turntable UI works - it properly syncs to all clients!
+        var targetNode = _nodes[trackNodeIndex];
+        var pickable = targetNode.GetComponent<IPickable>();
+        
+        if (pickable != null)
+        {
+            // Simulate clicking the physical turntable track node
+            // The game's IPickable system handles network synchronization automatically
+            Loader.Log($"Rotating turntable to track {trackNodeIndex} (network-synced via IPickable)");
+            pickable.Activate(new PickableActivateEvent());
+        }
+        else
+        {
+            // Fallback for single-player if IPickable not found
+            Loader.Log($"WARNING: Rotating turntable to track {trackNodeIndex} using direct call (NOT network-synced!)");
+            _targetIndex = trackNodeIndex;
+            _targetAngle = _controller.turntable.AngleForIndex(trackNodeIndex);
+        }
     }
 
     public void FixedUpdate()
     {
+        // Check if rotation is complete by comparing current index to target
+        if (_isRotating && _controller != null && _controller.turntable != null)
+        {
+            var currentIndex = _controller.turntable.StopIndex;
+            if (currentIndex.HasValue && currentIndex.Value == _targetIndex)
+            {
+                // Rotation reached target, allow new commands
+                _isRotating = false;
+                Loader.Log($"Turntable rotation completed at track index {currentIndex.Value}");
+                OnRotationComplete?.Invoke();
+            }
+        }
+
+        // Only needed for fallback direct calls (when IPickable not available)
+        // The IPickable system handles rotation automatically and network-synced
         if (!_targetAngle.HasValue || _controller == null || _controller.turntable == null)
         {
             return;
         }
 
+        // Fallback path for single-player when IPickable not found
+        Loader.LogDebug($"TurntableHelper: FixedUpdate fallback - rotating to index {_targetIndex}");
         _controller.SetAngle(_targetAngle.Value);
         _controller.turntable.SetStopIndex(_targetIndex);
         _targetAngle = null;
-        
-        // Trigger callback after rotation is complete
+
+        // For fallback, mark rotation as complete immediately
+        _isRotating = false;
         OnRotationComplete?.Invoke();
     }
 

@@ -123,6 +123,7 @@ public static class Loader
 	
 	// Turntable marker settings
 	public bool ShowTurntableMarkers = true; // Show clickable markers on turntables
+	public bool EnableTurntableControl = true; // Enable turntable rotation from map (network-synced for multiplayer)
 	public Color TurntableMarkerColor = new Color(0.8f, 0.5f, 0.2f, 0.4f); // Orange with transparency
 
 	public override void Save(UnityModManager.ModEntry modEntry)
@@ -152,8 +153,28 @@ public static class Loader
 				}
 			}
 			
+		using (new GUILayout.HorizontalScope())
+		{
+			var enableControl = GUILayout.Toggle(Settings.EnableTurntableControl, "Enable Turntable Control from Map (network-synced)");
+			if (Settings.EnableTurntableControl != enableControl)
+			{
+				Settings.EnableTurntableControl = enableControl;
+				// When enabling turntable control, also enable markers by default
+				if (enableControl && !Settings.ShowTurntableMarkers)
+				{
+					Settings.ShowTurntableMarkers = true;
+				}
+				changed = true;
+			}
+		}
+		
+		if (Settings.EnableTurntableControl)
+		{
+			GUILayout.Label("  ℹ️ Turntable rotations are synchronized to all players in multiplayer.", GUILayout.ExpandWidth(true));
+			
 			using (new GUILayout.HorizontalScope())
 			{
+				GUILayout.Space(20);
 				var showMarkers = GUILayout.Toggle(Settings.ShowTurntableMarkers, "Show Turntable Markers (Ctrl+Click = Clockwise, Alt+Click = Counterclockwise, Shift+Click = 180°)");
 				if (Settings.ShowTurntableMarkers != showMarkers)
 				{
@@ -161,8 +182,11 @@ public static class Loader
 					changed = true;
 				}
 			}
-
-			GUILayout.Space(UnityModManager.UI.Scale(5));
+		}
+		else
+		{
+			GUILayout.Label("  ℹ️ Turntable control from map is disabled. Use in-game turntable UI instead.", GUILayout.ExpandWidth(true));
+		}			GUILayout.Space(UnityModManager.UI.Scale(5));
 			GUILayout.Label("Toggle Map Size Keybind");
 			UnityModManager.UI.DrawKeybindingSmart(Settings.mapToggle, "Toggle Map Size", null, GUILayout.Width(UnityModManager.UI.Scale(200)));
 			GUILayout.Label("Re-center Map on Player Keybind");
@@ -388,6 +412,7 @@ public static class Loader
 			// Reset boolean settings
 			Settings.DoubleClick = false;
 			Settings.ShowTurntableMarkers = true;
+			Settings.EnableTurntableControl = true;
 			
 			// Reset scale and size settings
 			Settings.FlareScale = 0.6f;

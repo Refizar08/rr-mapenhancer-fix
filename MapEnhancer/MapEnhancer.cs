@@ -1214,10 +1214,27 @@ public class MapEnhancer : MonoBehaviour
 	private void GatherTurntables()
 	{
 		_turntableHelpers.Clear();
-		var turntableControllers = FindObjectsOfType<TurntableController>();
+		
+		// Skip if turntable control is disabled
+		if (!UMM.Loader.Settings.EnableTurntableControl)
+			return;
+			
+		var turntableControllers = FindObjectsOfType<TurntableController>(true);
+		Loader.Log($"Found {turntableControllers.Length} turntable(s) in scene");
 		
 		foreach (var controller in turntableControllers)
 		{
+			if (controller == null || controller.turntable == null)
+				continue;
+			
+			// Activate inactive turntables so their components can initialize
+			if (!controller.gameObject.activeInHierarchy)
+			{
+				var pos = controller.turntable.transform.position;
+				controller.gameObject.SetActive(true);
+				Loader.Log($"Activated inactive turntable at ({pos.x:F2}, {pos.y:F2}, {pos.z:F2})");
+			}
+			
 			var helper = controller.GetComponent<TurntableHelper>();
 			if (helper == null)
 			{
@@ -1234,10 +1251,69 @@ public class MapEnhancer : MonoBehaviour
 			};
 			
 			_turntableHelpers.Add(helper);
-			AddTurntableMarker(helper);
 		}
 		
-		Loader.LogDebug($"Found {_turntableHelpers.Count} turntables");
+		// Defer marker creation to allow Awake() to complete on all helpers
+		if (_turntableHelpers.Count > 0)
+			StartCoroutine(AddTurntableMarkersNextFrame());
+	}
+
+	private System.Collections.IEnumerator AddTurntableMarkersNextFrame()
+	{
+		// Wait for all TurntableHelper Awake() calls to complete
+		// Inactive turntables that were just activated may take several frames to initialize
+		const int maxWaitFrames = 20; // Increased from 10 to 20 frames
+		int frameCount = 0;
+		
+		while (frameCount < maxWaitFrames)
+		{
+			yield return null;
+			frameCount++;
+			
+			// Check if all helpers are fully initialized
+			if (_turntableHelpers.All(h => h != null && h.IsInitialized))
+			{
+				Loader.Log($"All {_turntableHelpers.Count} turntable helper(s) initialized after {frameCount} frame(s)");
+				break;
+			}
+			
+			// Log status every 5 frames to help debug slow initialization
+			if (frameCount % 5 == 0)
+			{
+				int initializedCount = _turntableHelpers.Count(h => h != null && h.IsInitialized);
+				Loader.Log($"Frame {frameCount}: {initializedCount}/{_turntableHelpers.Count} turntable(s) initialized");
+			}
+		}
+		
+		// Log any helpers that failed to initialize
+		for (int i = 0; i < _turntableHelpers.Count; i++)
+		{
+			var helper = _turntableHelpers[i];
+			if (helper == null)
+			{
+				Loader.Log($"ERROR: Turntable helper #{i} is null");
+			}
+			else if (!helper.IsInitialized)
+			{
+				Loader.Log($"ERROR: Turntable helper #{i} failed to initialize after {maxWaitFrames} frames");
+			}
+		}
+		
+		int successCount = 0;
+		foreach (var helper in _turntableHelpers)
+		{
+			if (helper != null && helper.IsInitialized && helper.Controller != null && helper.Controller.turntable != null)
+			{
+				var pos = helper.Controller.turntable.transform.position;
+				AddTurntableMarker(helper, helper.Controller);
+				successCount++;
+				Loader.Log($"Created marker for turntable at ({pos.x:F2}, {pos.y:F2}, {pos.z:F2})");
+			}
+		}
+		
+		Loader.Log($"Successfully created {successCount}/{_turntableHelpers.Count} turntable marker(s)");
+		if (successCount < _turntableHelpers.Count)
+			Loader.Log($"WARNING: {_turntableHelpers.Count - successCount} turntable marker(s) failed to create");
 	}
 
 	private void DestroyTurntableMarkers()
@@ -1254,13 +1330,16 @@ public class MapEnhancer : MonoBehaviour
 		_turntableHelpers.Clear();
 	}
 
-	internal static void AddTurntableMarker(TurntableHelper helper)
+	internal static void AddTurntableMarker(TurntableHelper helper, TurntableController controller)
 	{
-		if (helper == null || helper.Controller == null || helper.Controller.turntable == null)
+		if (helper == null || controller == null || controller.turntable == null)
+		{
+			Loader.LogDebug("AddTurntableMarker: Invalid helper or controller");
 			return;
+		}
 
 		var mapIcon = Instantiate<MapIcon>(turntablePrefab, Instance.Turntables.transform);
-		var turntablePos = helper.Controller.turntable.transform.position;
+		var turntablePos = controller.turntable.transform.position;
 		mapIcon.transform.position = WorldTransformer.GameToWorld(turntablePos) + Vector3.up * 2500f;
 		mapIcon.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
 		
@@ -1270,11 +1349,11 @@ public class MapEnhancer : MonoBehaviour
 		// Add component to override zoom scaling and keep it large
 		var scaleOverride = mapIcon.gameObject.AddComponent<TurntableIconScaleOverride>();
 		
-		// Control visibility based on setting, but always create the marker for click handling
+		// Control visibility based on settings
 		var image = mapIcon.GetComponentInChildren<Image>();
 		if (image != null)
 		{
-			image.enabled = UMM.Loader.Settings.ShowTurntableMarkers;
+			image.enabled = UMM.Loader.Settings.EnableTurntableControl && UMM.Loader.Settings.ShowTurntableMarkers;
 		}
 		
 		// Increase the RectTransform size for the clickable area
@@ -1303,6 +1382,21 @@ public class MapEnhancer : MonoBehaviour
 	{
 		if (helper == null || helper.Controller == null)
 			return;
+
+		// Check if turntable control is disabled in settings
+		if (!UMM.Loader.Settings.EnableTurntableControl)
+		{
+			Loader.Log("Turntable control is disabled in settings. Enable it in the mod settings to rotate turntables.");
+			return;
+		}
+
+		// Warn if in multiplayer (turntable rotation is NOT network-synced by the game)
+		if (StateManager.Shared != null && StateManager.Shared.Storage != null)
+		{
+			Loader.Log("⚠️ WARNING: Turntable control in multiplayer causes desync!");
+			Loader.Log("⚠️ Turntable rotation is NOT network-synced. Only the host/server should use this feature.");
+			Loader.Log("⚠️ Clients will see different turntable positions than the server, causing physics glitches.");
+		}
 
 		// Only rotate if Ctrl or Alt is held
 		if (!Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl) && 
@@ -1337,6 +1431,21 @@ public class MapEnhancer : MonoBehaviour
 	{
 		if (helper == null || helper.Controller == null)
 			return;
+
+		// Check if turntable control is disabled in settings
+		if (!UMM.Loader.Settings.EnableTurntableControl)
+		{
+			Loader.Log("Turntable control is disabled in settings. Enable it in the mod settings to rotate turntables.");
+			return;
+		}
+
+		// Warn if in multiplayer (turntable rotation is NOT network-synced by the game)
+		if (StateManager.Shared != null && StateManager.Shared.Storage != null)
+		{
+			Loader.Log("⚠️ WARNING: Turntable control in multiplayer causes desync!");
+			Loader.Log("⚠️ Turntable rotation is NOT network-synced. Only the host/server should use this feature.");
+			Loader.Log("⚠️ Clients will see different turntable positions than the server, causing physics glitches.");
+		}
 
 		// Rotate 180 degrees using the instance method
 		helper.Rotate180();
@@ -1577,14 +1686,14 @@ public class MapEnhancer : MonoBehaviour
 											// We want to use default yellow color instead of the gray area color
 											if (foundArea.identifier == "legos-global-industries")
 											{
-												Loader.LogDebug($"[MapEnhancer] Industry '{__instance.gameObject.name}' -> Skipping Cross Traffic global area, using default yellow");
+												Loader.LogDebug($"Industry '{__instance.gameObject.name}' -> Skipping Cross Traffic global area, using default yellow");
 												goto FoundIndustry;
 											}
 											if (foundArea.tagColor != default(Color))
 											{
 												industryColor = foundArea.tagColor;
 											}
-											Loader.LogDebug($"[MapEnhancer] Industry '{__instance.gameObject.name}' -> Found in area '{foundArea.identifier}', Color: {industryColor}");
+											Loader.LogDebug($"Industry '{__instance.gameObject.name}' -> Found in area '{foundArea.identifier}', Color: {industryColor}");
 											goto FoundIndustry; // Break out of all loops
 										}
 									}
@@ -1594,14 +1703,14 @@ public class MapEnhancer : MonoBehaviour
 					}
 					
 					// If not found in any area registry, fall back to position-based
-					Loader.LogDebug($"[MapEnhancer] Industry '{__instance.gameObject.name}' -> NOT FOUND in area registries, trying position fallback");
+					Loader.LogDebug($"Industry '{__instance.gameObject.name}' -> NOT FOUND in area registries, trying position fallback");
 					Vector3 worldPosition = __instance.transform.position;
 					Vector2 gamePosition = WorldTransformer.WorldToGame(worldPosition);
 					foundArea = OpsController.Shared.ClosestAreaForGamePosition(gamePosition);
 					if (foundArea != null && foundArea.tagColor != default(Color))
 					{
 						industryColor = foundArea.tagColor;
-						Loader.LogDebug($"[MapEnhancer] Industry '{__instance.gameObject.name}' -> Position fallback to area '{foundArea.identifier}', Color: {industryColor}");
+						Loader.LogDebug($"Industry '{__instance.gameObject.name}' -> Position fallback to area '{foundArea.identifier}', Color: {industryColor}");
 					}
 				}
 			}
