@@ -1409,14 +1409,6 @@ public class MapEnhancer : MonoBehaviour
 			return;
 		}
 
-		// Warn if in multiplayer (turntable rotation is NOT network-synced by the game)
-		if (StateManager.Shared != null && StateManager.Shared.Storage != null)
-		{
-			Loader.Log("⚠️ WARNING: Turntable control in multiplayer causes desync!");
-			Loader.Log("⚠️ Turntable rotation is NOT network-synced. Only the host/server should use this feature.");
-			Loader.Log("⚠️ Clients will see different turntable positions than the server, causing physics glitches.");
-		}
-
 		// Only rotate if Ctrl or Alt is held
 		if (!Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl) && 
 		    !Input.GetKey(KeyCode.LeftAlt) && !Input.GetKey(KeyCode.RightAlt))
@@ -1433,17 +1425,15 @@ public class MapEnhancer : MonoBehaviour
 		}
 
 		// Use the helper's rotation methods
-		if (clockwise)
-		{
-			helper.RotateClockwise();
-		}
-		else
-		{
-			helper.RotateCounterClockwise();
-		}
+		bool rotated = clockwise
+			? helper.RotateClockwise()
+			: helper.RotateCounterClockwise();
 		
-		var direction = clockwise ? "clockwise" : "counterclockwise";
-		Loader.Log($"Rotating turntable {direction}. Hold Ctrl+Click for clockwise, Alt+Click for counterclockwise, or Shift+Click for 180° rotation");
+		if (rotated)
+		{
+			var direction = clockwise ? "clockwise" : "counterclockwise";
+			Loader.Log($"Rotating turntable {direction}. Hold Ctrl+Click for clockwise, Alt+Click for counterclockwise, or Shift+Click for 180° rotation");
+		}
 	}
 
 	private static void ShowTurntable180Control(TurntableHelper helper)
@@ -1458,17 +1448,11 @@ public class MapEnhancer : MonoBehaviour
 			return;
 		}
 
-		// Warn if in multiplayer (turntable rotation is NOT network-synced by the game)
-		if (StateManager.Shared != null && StateManager.Shared.Storage != null)
-		{
-			Loader.Log("⚠️ WARNING: Turntable control in multiplayer causes desync!");
-			Loader.Log("⚠️ Turntable rotation is NOT network-synced. Only the host/server should use this feature.");
-			Loader.Log("⚠️ Clients will see different turntable positions than the server, causing physics glitches.");
-		}
-
 		// Rotate 180 degrees using the instance method
-		helper.Rotate180();
-		Loader.Log("Rotating turntable 180 degrees to reverse engine");
+		if (helper.Rotate180())
+		{
+			Loader.Log("Rotating turntable 180 degrees to reverse engine");
+		}
 	}
 
 	void LateUpdate()
