@@ -56,6 +56,8 @@ public class MapEnhancer : MonoBehaviour
 	private Sprite dropdownSprite;
 	private HashSet<string> moddedSpawnPointNames = new HashSet<string>(); // Track modded spawn points
 	private static Dictionary<string, List<string>> _spawnPointCategories = new Dictionary<string, List<string>>(); // Category -> spawn point names
+	private bool _modSpawnPointsLoaded = false;
+	private readonly HashSet<string> _spawnPointSummaryLogKeys = new HashSet<string>();
 
 	// Holder stops "prefab" from going active immediately
 	private static GameObject _prefabHolder;
@@ -586,8 +588,13 @@ public class MapEnhancer : MonoBehaviour
 
 	private void LoadModSpawnPoints()
 	{
+		if (_modSpawnPointsLoaded)
+		{
+			return;
+		}
+
 		// Clear previous modded spawn points tracking
-					moddedSpawnPointNames.Clear();
+		moddedSpawnPointNames.Clear();
 		_spawnPointCategories.Clear();
 		
 		// Skip if feature is disabled
@@ -694,15 +701,27 @@ public class MapEnhancer : MonoBehaviour
 					totalLoaded++;
 					Loader.LogDebug($"Loaded spawn point '{spawnName}' from {modFolderName} at ({x}, {y}, {z})");
 				}
-			Loader.Log($"Loaded {spawnPointCount} spawn point(s) from {modFolderName}");
+			var perModLogKey = $"{modFolderName}:{spawnPointCount}";
+			if (_spawnPointSummaryLogKeys.Add(perModLogKey))
+			{
+				Loader.Log($"Loaded {spawnPointCount} spawn point(s) from {modFolderName}");
+			}
 		}
 		catch (Exception ex)
 		{
 			Loader.Log($"Error loading spawn points from {modFolderName}: {ex.Message}");
 		}
-	}		if (totalLoaded > 0)
+	}
+
+		_modSpawnPointsLoaded = true;
+
+		if (totalLoaded > 0)
 		{
-			Loader.Log($"Total spawn points loaded from mods: {totalLoaded}");
+			var totalLogKey = $"total:{totalLoaded}";
+			if (_spawnPointSummaryLogKeys.Add(totalLogKey))
+			{
+				Loader.Log($"Total spawn points loaded from mods: {totalLoaded}");
+			}
 		}
 	}
 
