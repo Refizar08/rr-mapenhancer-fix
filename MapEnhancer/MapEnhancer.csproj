@@ -26,6 +26,9 @@
 		<Reference Include="Map.Runtime">
 			<HintPath>$(RrManagedDir)\Map.Runtime.dll</HintPath>
 		</Reference>
+		<Reference Include="KeyValue.Runtime">
+			<HintPath>$(RrManagedDir)\KeyValue.Runtime.dll</HintPath>
+		</Reference>
 	</ItemGroup>
 
 	<!-- Mod Loader -->

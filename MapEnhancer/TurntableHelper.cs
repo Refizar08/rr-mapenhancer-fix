@@ -4,10 +4,13 @@ using System.Linq;
 using System.Reflection;
 using System;
 using Game.AccessControl;
+using Game.Messages;
 using Game.State;
 using HarmonyLib;
 using Helpers;
 using RollingStock;
+using Model.Physics;
+using Network;
 using Track;
 using UnityEngine;
 using MapEnhancer.UMM;
@@ -24,15 +27,17 @@ public class TurntableHelper : MonoBehaviour
     private float? _targetAngle;
     private int _targetIndex;
     private bool _isRotating = false;
-    private bool _waitingForNetworkedCompletion = false;
     private float _lastRotationTime = 0f;
     private float _rotationStartedAt = 0f;
     private float _fallbackFromAngle = 0f;
     private float _fallbackDurationSec = 0.25f;
+    private float _lastNetworkAngleSyncTime = 0f;
+    private IDisposable _requestObserver;
+    private int _requestSequence = 0;
 
     private const float ROTATION_COOLDOWN = 0.5f;
     private const float SMOOTH_ROTATION_SPEED_DEG_PER_SEC = 30f;
-    private const float NETWORKED_ROTATION_TIMEOUT_SEC = 12f;
+    private const float NETWORK_ANGLE_SYNC_INTERVAL_SEC = 0.2f;
 
     public TurntableController Controller => _controller;
     public List<int> ActiveTrackIndexes => _activeIndexes?.ToList() ?? new List<int>();
@@ -41,18 +46,36 @@ public class TurntableHelper : MonoBehaviour
 
     public void Awake()
     {
+        EnsureInitialized(logFailures: true);
+    }
+
+    public bool EnsureInitialized(bool logFailures = false)
+    {
+        if (_isInitialized)
+        {
+            return true;
+        }
+
         _controller = GetComponent<TurntableController>();
         if (_controller == null || _controller.turntable == null)
         {
-            Loader.Log($"TurntableHelper initialization FAILED: No controller or turntable found on {gameObject.name}");
-            return;
+            if (logFailures)
+            {
+                Loader.Log($"TurntableHelper initialization FAILED: No controller or turntable found on {gameObject.name}");
+            }
+
+            return false;
         }
 
         _nodes = Traverse.Create(_controller.turntable).Field<List<TrackNode>>("nodes").Value;
         if (_nodes == null || _nodes.Count == 0)
         {
-            Loader.Log($"TurntableHelper initialization FAILED: No nodes found for turntable at {_controller.turntable.transform.position}");
-            return;
+            if (logFailures)
+            {
+                Loader.Log($"TurntableHelper initialization FAILED: No nodes found for turntable at {_controller.turntable.transform.position}");
+            }
+
+            return false;
         }
 
         _activeIndexes = new HashSet<int>();
@@ -72,10 +95,14 @@ public class TurntableHelper : MonoBehaviour
         var position = _controller.turntable.transform.position;
         _isInitialized = true;
         Loader.Log($"Turntable initialized at ({position.x:F2}, {position.y:F2}, {position.z:F2}) with {_activeIndexes.Count} active track connections");
+        RegisterTurntableRequestObserver();
+        return true;
     }
 
     public bool MoveToIndex(int trackNodeIndex)
     {
+        RegisterTurntableRequestObserver();
+
         if (_isRotating)
         {
             Loader.LogDebug("TurntableHelper: Rotation already in progress, ignoring command");
@@ -107,40 +134,66 @@ public class TurntableHelper : MonoBehaviour
             return false;
         }
 
+        if (IsMultiplayer())
+        {
+            if (TrySendMultiplayerTurntableRequest(trackNodeIndex))
+            {
+                return true;
+            }
+
+            Loader.Log($"Turntable rotation BLOCKED: Could not send multiplayer request for track {trackNodeIndex}");
+            return false;
+        }
+
         _isRotating = true;
         _lastRotationTime = Time.time;
         _rotationStartedAt = Time.time;
         _targetIndex = trackNodeIndex;
+        return BeginLocalRotation(trackNodeIndex, "single-player only");
+    }
 
-        var targetNode = _nodes[trackNodeIndex];
-        var pickable = FindPickable(targetNode);
-
-        if (pickable != null)
-        {
-            var pickableGo = pickable is MonoBehaviour mb ? mb.gameObject.name : "<unknown>";
-            Loader.Log($"Rotating turntable to track {trackNodeIndex} (network-synced via IPickable: {pickableGo})");
-            _waitingForNetworkedCompletion = true;
-            pickable.Activate(ObjectPicker.CreateEvent(PickableActivation.Primary));
-            return true;
-        }
-
-        if (IsMultiplayer())
-        {
-            Loader.Log($"Turntable rotation BLOCKED: No IPickable found for target track {trackNodeIndex} in multiplayer (prevents desync)");
-            _isRotating = false;
-            _waitingForNetworkedCompletion = false;
-            return false;
-        }
-        // Loader.Log($"WARNING: Game running in {IsMultiplayer() ? "multiplayer" : "single-player"} mode but no IPickable found for target track {trackNodeIndex}, using smooth local fallback");
-        Loader.Log($"WARNING: Rotating turntable to track {trackNodeIndex} using smooth local fallback (single-player only)");
+    private bool BeginLocalRotation(int trackNodeIndex, string context)
+    {
+        Loader.Log($"WARNING: Rotating turntable to track {trackNodeIndex} using smooth local fallback ({context})");
         var currentIndex = GetCurrentIndex();
         _fallbackFromAngle = currentIndex >= 0
             ? _controller.turntable.AngleForIndex(currentIndex)
             : _controller.turntable.AngleForIndex(trackNodeIndex);
         _targetAngle = _controller.turntable.AngleForIndex(trackNodeIndex);
+        _controller.turntable.SetStopIndex(null);
         var delta = Mathf.Abs(Mathf.DeltaAngle(_fallbackFromAngle, _targetAngle.Value));
         _fallbackDurationSec = Mathf.Max(0.2f, delta / SMOOTH_ROTATION_SPEED_DEG_PER_SEC);
-        _waitingForNetworkedCompletion = false;
+        _lastNetworkAngleSyncTime = 0f;
+        SyncNetworkStopIndex(_fallbackFromAngle, null);
+        return true;
+    }
+
+    private bool TrySendMultiplayerTurntableRequest(int trackNodeIndex)
+    {
+        var storage = MapEnhancer.Instance?.TurntableSyncStorage;
+        if (storage == null)
+        {
+            Loader.Log("TurntableHelper: Multiplayer turntable request storage is not available");
+            return false;
+        }
+
+        var turntableId = GetTurntableId();
+        if (string.IsNullOrWhiteSpace(turntableId))
+        {
+            Loader.Log($"TurntableHelper: Unable to resolve turntable id for multiplayer request to track {trackNodeIndex}");
+            return false;
+        }
+
+        var request = new TurntableRequestState(turntableId, trackNodeIndex, ++_requestSequence);
+        if (Multiplayer.IsHost)
+        {
+            Loader.Log($"Rotating turntable to track {trackNodeIndex} (host applying request for '{turntableId}', seq {request.Sequence})");
+            ApplyTurntableRequest(request, "host applying map request");
+            return true;
+        }
+
+        Loader.Log($"Rotating turntable to track {trackNodeIndex} (request queued for '{turntableId}', seq {request.Sequence})");
+        StateManager.ApplyLocal(new PropertyChange(TurntableRequestStorage.ObjectId, turntableId, PropertyValueConverter.RuntimeToSnapshot(request.ToPropertyValue())));
         return true;
     }
 
@@ -151,27 +204,6 @@ public class TurntableHelper : MonoBehaviour
             return;
         }
 
-        if (_isRotating && _waitingForNetworkedCompletion)
-        {
-            var currentIndex = _controller.turntable.StopIndex;
-            if (currentIndex.HasValue && currentIndex.Value == _targetIndex)
-            {
-                CompleteRotation($"Turntable rotation completed at track index {currentIndex.Value}");
-                return;
-            }
-
-            if (Time.time - _rotationStartedAt > NETWORKED_ROTATION_TIMEOUT_SEC)
-            {
-                _isRotating = false;
-                _waitingForNetworkedCompletion = false;
-                Loader.Log($"Turntable rotation timed out waiting for networked completion (target index {_targetIndex})");
-                OnRotationComplete?.Invoke();
-                return;
-            }
-
-            return;
-        }
-
         if (_isRotating && _targetAngle.HasValue)
         {
             var elapsed = Time.time - _rotationStartedAt;
@@ -179,23 +211,106 @@ public class TurntableHelper : MonoBehaviour
             var nextAngle = Mathf.LerpAngle(_fallbackFromAngle, _targetAngle.Value, t);
 
             _controller.SetAngle(nextAngle);
+            SyncNetworkAngle(nextAngle);
 
             if (t >= 1f)
             {
                 _controller.SetAngle(_targetAngle.Value);
                 _controller.turntable.SetStopIndex(_targetIndex);
+                SyncNetworkStopIndex(_targetAngle.Value, _targetIndex);
                 _targetAngle = null;
                 CompleteRotation($"Turntable rotation completed at track index {_targetIndex}");
             }
         }
     }
 
+    private void SyncNetworkAngle(float angle)
+    {
+        if (!Multiplayer.IsHost || StateManager.Shared == null || _controller?.turntable == null)
+        {
+            return;
+        }
+
+        if (Time.time - _lastNetworkAngleSyncTime < NETWORK_ANGLE_SYNC_INTERVAL_SEC)
+        {
+            return;
+        }
+
+        _lastNetworkAngleSyncTime = Time.time;
+        StateManager.ApplyLocal(new TurntableUpdateAngle(_controller.turntable.id, StateManager.Now, angle));
+    }
+
+    private void SyncNetworkStopIndex(float angle, int? stopIndex)
+    {
+        if (!Multiplayer.IsHost || StateManager.Shared == null || _controller?.turntable == null)
+        {
+            return;
+        }
+
+        StateManager.ApplyLocal(new TurntableUpdateStopIndex(_controller.turntable.id, StateManager.Now, angle, stopIndex));
+    }
+
     private void CompleteRotation(string message)
     {
         _isRotating = false;
-        _waitingForNetworkedCompletion = false;
         Loader.Log(message);
         OnRotationComplete?.Invoke();
+    }
+
+    private void RegisterTurntableRequestObserver()
+    {
+        if (_requestObserver != null)
+        {
+            return;
+        }
+
+        var storage = MapEnhancer.Instance?.TurntableSyncStorage;
+        if (storage == null)
+        {
+            return;
+        }
+
+        var turntableId = GetTurntableId();
+        if (string.IsNullOrWhiteSpace(turntableId))
+        {
+            return;
+        }
+
+        _requestObserver = storage.ObserveRequest(turntableId, OnTurntableRequestChanged, false);
+    }
+
+    private void OnTurntableRequestChanged(TurntableRequestState? request)
+    {
+        if (request == null)
+        {
+            return;
+        }
+
+        var requestTurntableId = request.TurntableId ?? string.Empty;
+        if (!string.Equals(requestTurntableId, GetTurntableId(), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        ApplyTurntableRequest(request, Multiplayer.IsHost ? "host applying synced request" : "client applying synced request");
+    }
+
+    private void ApplyTurntableRequest(TurntableRequestState request, string context)
+    {
+        Loader.Log($"Turntable request received for '{request.TurntableId}' -> track {request.TrackNodeIndex} (seq {request.Sequence})");
+
+        if (_isRotating)
+        {
+            Loader.LogDebug("TurntableHelper: New synced request arrived while rotating; replacing in-flight target");
+            _isRotating = false;
+            _targetAngle = null;
+        }
+
+        _isRotating = true;
+        _lastRotationTime = Time.time;
+        _rotationStartedAt = Time.time;
+        _targetIndex = request.TrackNodeIndex;
+        BeginLocalRotation(request.TrackNodeIndex, context);
     }
 
     private bool IsMultiplayer()
@@ -292,6 +407,44 @@ public class TurntableHelper : MonoBehaviour
         // Unknown shape: default to single-player-safe behavior so local control still works.
         Loader.LogDebug("TurntableHelper: Could not determine multiplayer player count, treating as single-player");
         return false;
+    }
+
+    private string GetTurntableId()
+    {
+        if (_controller == null || _controller.turntable == null)
+        {
+            return string.Empty;
+        }
+
+        var turntable = _controller.turntable;
+        string turntableId = TryGetTextMember(turntable,
+            "TurntableId",
+            "turntableId",
+            "Id",
+            "id",
+            "Name",
+            "name");
+
+        if (!string.IsNullOrWhiteSpace(turntableId))
+        {
+            return turntableId;
+        }
+
+        string controllerId = TryGetTextMember(_controller,
+            "TurntableId",
+            "turntableId",
+            "Id",
+            "id",
+            "Name",
+            "name");
+
+        if (!string.IsNullOrWhiteSpace(controllerId))
+        {
+            return controllerId;
+        }
+
+        var position = _controller.turntable.transform.position;
+        return $"tt:{Mathf.RoundToInt(position.x * 10f)}:{Mathf.RoundToInt(position.y * 10f)}:{Mathf.RoundToInt(position.z * 10f)}";
     }
 
     private bool? TryGetBoolMember(object obj, params string[] memberNames)
@@ -518,6 +671,23 @@ public class TurntableHelper : MonoBehaviour
             }
         }
 
+        // Some multiplayer turntable prefabs place the actionable pickable elsewhere on the turntable root
+        // instead of inside the track node subtree, so search the full turntable hierarchy as a fallback.
+        if (_controller != null && _controller.turntable != null)
+        {
+            foreach (var behaviour in _controller.turntable.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (behaviour is IPickable turntablePickable)
+                {
+                    var dist = Vector3.Distance(targetPos, behaviour.transform.position);
+                    if (dist <= maxSearchDistance)
+                    {
+                        candidates.Add((turntablePickable, dist));
+                    }
+                }
+            }
+        }
+
         // Search only first two parent levels (avoid accidentally selecting global turntable controls)
         var parent = targetNode.transform.parent;
         var level = 0;
@@ -545,6 +715,12 @@ public class TurntableHelper : MonoBehaviour
         }
 
         return candidates.OrderBy(c => c.dist).First().pickable;
+    }
+
+    private void OnDestroy()
+    {
+        _requestObserver?.Dispose();
+        _requestObserver = null;
     }
 
     private bool IsTurntableFouled(out string reason)

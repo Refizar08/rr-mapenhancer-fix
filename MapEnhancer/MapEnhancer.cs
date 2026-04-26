@@ -10,6 +10,7 @@ using HarmonyLib;
 using Helpers;
 using Map.Runtime;
 using MapEnhancer.UMM;
+using KeyValue.Runtime;
 using Model;
 using Model.Definition;
 using Model.Ops;
@@ -20,6 +21,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Emit;
 using System.Text.RegularExpressions;
 using TMPro;
@@ -107,6 +109,20 @@ public class MapEnhancer : MonoBehaviour
 
 	private Coroutine traincarColorUpdater;
 	private static List<TurntableHelper> _turntableHelpers = new List<TurntableHelper>();
+	private GameObject _turntableSyncStorageGo;
+	private TurntableRequestStorage _turntableRequestStorage;
+	private GameObject _switchResetAuditStorageGo;
+	private SwitchResetAuditStorage _switchResetAuditStorage;
+	private IDisposable _switchResetAuditObserver;
+	private readonly HashSet<string> _processedSwitchResetRequestIds = new HashSet<string>();
+	private readonly HashSet<string> _processedSwitchResetLogIds = new HashSet<string>();
+	private int _hostSwitchResetActionCount = 0;
+	private int _hostSwitchesResetTotal = 0;
+	private Coroutine _turntableMapRefreshCoroutine;
+	private const string SwitchResetAuditRequestPrefix = "request:";
+	private const string SwitchResetAuditLogPrefix = "log:";
+
+	internal TurntableRequestStorage TurntableSyncStorage => _turntableRequestStorage;
 
 	private static HashSet<string> _mainlineSegments;
 	private static HashSet<string> _industrialSegments = new HashSet<string>();
@@ -330,6 +346,8 @@ public class MapEnhancer : MonoBehaviour
 		traincarColorUpdater = StartCoroutine(TraincarColorUpdater());
 
 		GatherFlareMarkers();
+		InitializeTurntableSyncStorage();
+		InitializeSwitchResetAuditStorage();
 		GatherTurntables();
 
 		Messenger.Default.Register<WorldDidMoveEvent>(this, new Action<WorldDidMoveEvent>(this.WorldDidMove));
@@ -393,6 +411,9 @@ public class MapEnhancer : MonoBehaviour
 		if (resizer)
 			DestroyImmediate(resizer.gameObject);
 
+		DestroyTurntableSyncStorage();
+		DestroySwitchResetAuditStorage();
+
 		MapBuilder.Shared.mapCamera.GetComponent<UniversalAdditionalCameraData>().requiresDepthOption = CameraOverrideOption.On;
 
 		if (mapSettings) Destroy(mapSettings.gameObject);
@@ -420,6 +441,106 @@ public class MapEnhancer : MonoBehaviour
 		{
 			CreateMapSettings();
 		}
+	}
+
+	private void InitializeTurntableSyncStorage()
+	{
+		if (_turntableRequestStorage != null)
+		{
+			return;
+		}
+
+		_turntableSyncStorageGo = new GameObject("MapEnhancer_TurntableSyncStorage");
+		_turntableSyncStorageGo.hideFlags = HideFlags.HideAndDontSave;
+		_turntableSyncStorageGo.transform.SetParent(transform, false);
+
+		var keyValueObject = _turntableSyncStorageGo.AddComponent<KeyValueObject>();
+		_turntableRequestStorage = new TurntableRequestStorage(keyValueObject);
+		Loader.LogDebug("Initialized turntable request storage for multiplayer sync");
+	}
+
+	private void DestroyTurntableSyncStorage()
+	{
+		_turntableRequestStorage?.Dispose();
+		_turntableRequestStorage = null;
+		if (_turntableSyncStorageGo != null)
+		{
+			DestroyImmediate(_turntableSyncStorageGo);
+			_turntableSyncStorageGo = null;
+		}
+	}
+
+	private void InitializeSwitchResetAuditStorage()
+	{
+		if (_switchResetAuditStorage != null)
+		{
+			return;
+		}
+
+		_switchResetAuditStorageGo = new GameObject("MapEnhancer_SwitchResetAuditStorage");
+		_switchResetAuditStorageGo.hideFlags = HideFlags.HideAndDontSave;
+		_switchResetAuditStorageGo.transform.SetParent(transform, false);
+
+		var keyValueObject = _switchResetAuditStorageGo.AddComponent<KeyValueObject>();
+		_switchResetAuditStorage = new SwitchResetAuditStorage(keyValueObject);
+		_switchResetAuditObserver = _switchResetAuditStorage.ObserveRequests(OnSwitchResetAuditRequest);
+		_processedSwitchResetRequestIds.Clear();
+		_processedSwitchResetLogIds.Clear();
+		_hostSwitchResetActionCount = 0;
+		_hostSwitchesResetTotal = 0;
+		Loader.LogDebug("Initialized switch reset audit storage for multiplayer host logging");
+	}
+
+	private void DestroySwitchResetAuditStorage()
+	{
+		_switchResetAuditObserver?.Dispose();
+		_switchResetAuditObserver = null;
+		_switchResetAuditStorage?.Dispose();
+		_switchResetAuditStorage = null;
+		if (_switchResetAuditStorageGo != null)
+		{
+			DestroyImmediate(_switchResetAuditStorageGo);
+			_switchResetAuditStorageGo = null;
+		}
+		_processedSwitchResetRequestIds.Clear();
+		_processedSwitchResetLogIds.Clear();
+	}
+
+	internal void RefreshMapAfterTurntableRotation()
+	{
+		if (_turntableMapRefreshCoroutine != null)
+		{
+			StopCoroutine(_turntableMapRefreshCoroutine);
+		}
+
+		_turntableMapRefreshCoroutine = StartCoroutine(RefreshMapAfterTurntableRotationCoroutine());
+	}
+
+	private IEnumerator RefreshMapAfterTurntableRotationCoroutine()
+	{
+		yield return null;
+
+		if (MapState != MapStates.MAPLOADED)
+		{
+			_turntableMapRefreshCoroutine = null;
+			yield break;
+		}
+
+		Loader.LogDebug("Refreshing map after turntable rotation");
+		Rebuild();
+		if (MapWindow.instance != null && MapWindow.instance._window.IsShown)
+		{
+			MapBuilder.Shared.Rebuild();
+		}
+
+		yield return null;
+
+		if (MapState == MapStates.MAPLOADED && MapWindow.instance != null && MapWindow.instance._window.IsShown)
+		{
+			MapBuilder.Shared.Rebuild();
+		}
+
+		_turntableMapRefreshCoroutine = null;
 	}
 
 	private void CreateMapSettings()
@@ -763,116 +884,273 @@ public class MapEnhancer : MonoBehaviour
 		LogSwitchResetAction("Thrown", switchesReset);
 	}
 
-    private void LogSwitchResetAction(string action, int switchCount)
-    {
-        string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-        
-        // Get the player's Steam name from StateManager.Shared._playersManager.LocalPlayer
-        string userName = Environment.UserName.ToLower(); // Fallback
-        try
-        {
-            var playersManager = StateManager.Shared?._playersManager;
-            if (playersManager != null)
-            {
-                var localPlayer = playersManager.LocalPlayer;
-                if (!string.IsNullOrEmpty(localPlayer.Name))
-                {
-                    userName = localPlayer.Name.ToLower();
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Loader.Log($"Could not get Steam player name: {ex.Message}");
-        }
-        
-        // Determine action text: "Normal" becomes "Normal", "Thrown" becomes "Reversed"
-        string actionText = action.Equals("Normal", StringComparison.OrdinalIgnoreCase) ? "Normal" : "Reversed";
-        
-        string logMessage = $"{userName} reset switches to {actionText}";
-        
-        // Log to in-game console
-        global::Console.Log(logMessage);
-        
-        // Also log to mod logger (shows in railloader.log)
-        Loader.Log(logMessage);
-        
-        // Log to file with timestamp for permanent record
-        try
-        {
-            string logPath = Path.Combine(Loader.ModEntry.Path, "MapEnhancer_SwitchResets.log");
-            string fileLogMessage = $"[{timestamp}] [Map Enhancer] {logMessage} (Total: {switchCount} switches)";
-            File.AppendAllText(logPath, fileLogMessage + Environment.NewLine);
-        }
-        catch (Exception ex)
-        {
-            Loader.Log($"Failed to write switch reset log to file: {ex.Message}");
-        }
-    }	private IEnumerator TraincarColorUpdater()
+	private void LogSwitchResetAction(string action, int switchCount)
+	{
+		string userName = GetCurrentPlayerName();
+		string actionText = action.Equals("Normal", StringComparison.OrdinalIgnoreCase) ? "Normal" : "Reversed";
+
+		if (IsHostMultiplayer() || !IsClientMultiplayer())
+		{
+			if (IsHostMultiplayer() && PublishSwitchResetAuditLog(userName, actionText, switchCount, "host-local"))
+			{
+				return;
+			}
+
+			WriteSwitchResetAuditLocal(userName, actionText, switchCount, "singleplayer", 0, 0);
+			return;
+		}
+
+		if (TrySendSwitchResetAuditRequest(userName, actionText, switchCount))
+		{
+			Loader.Log($"Switch reset request sent to host by '{userName}' for action '{actionText}' ({switchCount} switch(es))");
+			return;
+		}
+
+		Loader.Log("Switch reset host-sync unavailable, falling back to local audit log");
+		WriteSwitchResetAuditLocal(userName, actionText, switchCount, "local-fallback", 0, 0);
+	}
+
+	private string GetCurrentPlayerName()
+	{
+		string userName = Environment.UserName.ToLower();
+		try
+		{
+			var playersManager = StateManager.Shared?._playersManager;
+			if (playersManager != null)
+			{
+				var localPlayer = playersManager.LocalPlayer;
+				if (!string.IsNullOrEmpty(localPlayer.Name))
+				{
+					userName = localPlayer.Name.ToLower();
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			Loader.Log($"Could not get Steam player name: {ex.Message}");
+		}
+
+		return userName;
+	}
+
+	private void OnSwitchResetAuditRequest(string key, SwitchResetAuditState? request)
+	{
+		if (request == null)
+		{
+			return;
+		}
+
+		if (key.StartsWith(SwitchResetAuditLogPrefix, StringComparison.Ordinal))
+		{
+			if (!_processedSwitchResetLogIds.Add(key))
+			{
+				return;
+			}
+
+			WriteSwitchResetAuditLocal(
+				request.RequesterName,
+				request.Action,
+				request.SwitchCount,
+				"host-sync",
+				request.HostSequence,
+				request.HostTotal);
+			return;
+		}
+
+		if (!key.StartsWith(SwitchResetAuditRequestPrefix, StringComparison.Ordinal) || !IsHostMultiplayer())
+		{
+			return;
+		}
+
+		if (string.IsNullOrWhiteSpace(request.RequestId) || !_processedSwitchResetRequestIds.Add(request.RequestId))
+		{
+			return;
+		}
+
+		PublishSwitchResetAuditLog(request.RequesterName, request.Action, request.SwitchCount, "client-request");
+	}
+
+	private bool TrySendSwitchResetAuditRequest(string userName, string actionText, int switchCount)
+	{
+		if (_switchResetAuditStorage == null)
+		{
+			return false;
+		}
+
+		var request = new SwitchResetAuditState(
+			SwitchResetAuditRequestPrefix + Guid.NewGuid().ToString("N"),
+			userName,
+			actionText,
+			switchCount,
+			DateTime.UtcNow.ToString("O"));
+
+		StateManager.ApplyLocal(new PropertyChange(
+			SwitchResetAuditStorage.ObjectId,
+			request.RequestId,
+			PropertyValueConverter.RuntimeToSnapshot(request.ToPropertyValue())));
+
+		return true;
+	}
+
+	private bool PublishSwitchResetAuditLog(string userName, string actionText, int switchCount, string source)
+	{
+		if (_switchResetAuditStorage == null)
+		{
+			return false;
+		}
+
+		_hostSwitchResetActionCount++;
+		_hostSwitchesResetTotal += Mathf.Max(0, switchCount);
+		var key = SwitchResetAuditLogPrefix + Guid.NewGuid().ToString("N");
+		var state = new SwitchResetAuditState(
+			key,
+			userName,
+			actionText,
+			switchCount,
+			DateTime.UtcNow.ToString("O"),
+			_hostSwitchResetActionCount,
+			_hostSwitchesResetTotal);
+
+		_switchResetAuditStorage.Write(key, state);
+		return true;
+	}
+
+	private void WriteSwitchResetAuditLocal(string userName, string actionText, int switchCount, string source, int hostSequence, int hostTotal)
+	{
+		string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+		var sequence = hostSequence > 0 ? hostSequence : ++_hostSwitchResetActionCount;
+		if (hostTotal > 0)
+		{
+			_hostSwitchesResetTotal = Math.Max(_hostSwitchesResetTotal, hostTotal);
+		}
+		else
+		{
+			_hostSwitchesResetTotal += Mathf.Max(0, switchCount);
+			hostTotal = _hostSwitchesResetTotal;
+		}
+
+		string logMessage =
+			$"[SwitchReset#{sequence}] {userName} reset switches to {actionText} " +
+			$"(count: {switchCount}, host total: {hostTotal})";
+
+		global::Console.Log(logMessage);
+		Loader.Log(logMessage);
+
+		try
+		{
+			string logPath = Path.Combine(Loader.ModEntry.Path, "MapEnhancer_SwitchResets.log");
+			string fileLogMessage = $"[{timestamp}] [source:{source}] {logMessage}";
+			File.AppendAllText(logPath, fileLogMessage + Environment.NewLine);
+		}
+		catch (Exception ex)
+		{
+			Loader.Log($"Failed to write switch reset log to file: {ex.Message}");
+		}
+	}
+
+	private static bool IsHostMultiplayer()
+	{
+		return GetMultiplayerFlag("IsHost");
+	}
+
+	private static bool IsClientMultiplayer()
+	{
+		return GetMultiplayerFlag("IsClient");
+	}
+
+	private static bool GetMultiplayerFlag(string memberName)
+	{
+		var type = typeof(Multiplayer);
+		var property = type.GetProperty(memberName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+		if (property != null && property.PropertyType == typeof(bool))
+		{
+			return (bool)(property.GetValue(null) ?? false);
+		}
+
+		var field = type.GetField(memberName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+		if (field != null && field.FieldType == typeof(bool))
+		{
+			return (bool)(field.GetValue(null) ?? false);
+		}
+
+		return false;
+	}
+
+	private IEnumerator TraincarColorUpdater()
 	{
 		for (;;)
 		{
 			foreach (var marker in MapBuilder.Shared._mapIcons.ToArray())
 			{
-				if (marker == null) continue;
+				if (marker == null || marker.transform == null || marker.transform.parent == null)
+				{
+					continue;
+				}
 
-				// Check if this is a car icon
 				Car car = marker.transform.parent.GetComponent<Car>();
-				if (car != null)
+				if (car == null)
 				{
-					var image = marker.GetComponentInChildren<Image>(true);
-					marker.Text.gameObject.SetActive(!car.IsInBardo);
-					image.gameObject.SetActive(!car.IsInBardo);
+					continue;
+				}
 
-				if (car.Archetype.IsFreight())
+				var image = marker.GetComponentInChildren<Image>(true);
+				if (image == null || marker.Text == null)
 				{
-					string text;
-					bool flag;
-					Vector3 vector;
-					OpsCarPosition opsCarPosition;
-					OpsController opsController = OpsController.Shared!;
-					Color color = Color.white;
+					continue;
+				}
 
-					if (opsController != null && opsController.TryGetDestinationInfo(car, out text, out flag, out vector, out opsCarPosition))
+				bool visible = !car.IsInBardo;
+				marker.Text.gameObject.SetActive(visible);
+				image.gameObject.SetActive(visible);
+
+				if (!car.Archetype.IsFreight())
+				{
+					continue;
+				}
+
+				string text;
+				bool iconEnabled;
+				Vector3 destination;
+				OpsCarPosition opsCarPosition;
+				var opsController = OpsController.Shared;
+				Color color = Color.white;
+
+				if (opsController != null && opsController.TryGetDestinationInfo(car, out text, out iconEnabled, out destination, out opsCarPosition))
+				{
+					Area area = opsController.AreaForCarPosition(opsCarPosition);
+					if (area)
 					{
-						Area area = opsController.AreaForCarPosition(opsCarPosition);
+						color = area.tagColor;
+					}
 
-						if (area) color = area.tagColor;
-						
-						// Check if this is a modded area (has bright colors with maxComponent near 1.0)
-						float maxComponent = color.maxColorComponent;
-						bool isModdedArea = maxComponent >= 0.99f;
-						
-						// For modded areas, the flag appears to be inverted
-						bool shouldDarken = isModdedArea ? flag : !flag;
-						
-						if (shouldDarken)
+					float maxComponent = color.maxColorComponent;
+					bool isModdedArea = maxComponent >= 0.99f;
+					bool shouldDarken = isModdedArea ? iconEnabled : !iconEnabled;
+
+					if (shouldDarken)
+					{
+						if (maxComponent < 0.99f)
 						{
-							// Darken cars that need attention (undelivered for vanilla, delivered for modded)
-							if (maxComponent < 0.99f)
-							{
-								// Original method for vanilla areas
-								var intensity = 1 / maxComponent;
-								color *= intensity;
-							}
-							else
-							{
-								// HSV method for modded areas with bright colors
-								Color.RGBToHSV(color, out float h, out float s, out float v);
-								v *= 0.6f; // Reduce brightness to 60%
-								color = Color.HSVToRGB(h, s, v);
-								color.a = 1f; // Preserve full opacity
-							}
+							var intensity = 1f / Mathf.Max(maxComponent, 0.0001f);
+							color *= intensity;
+						}
+						else
+						{
+							Color.RGBToHSV(color, out float h, out float s, out float v);
+							v *= 0.6f;
+							color = Color.HSVToRGB(h, s, v);
+							color.a = 1f;
 						}
 					}
-					image.color = color;						yield return null;
-					}
 				}
+
+				image.color = color;
+				yield return null;
 			}
+
 			yield return null;
 		}
 	}
-
 	public void Rebuild()
 	{
 		Loader.LogDebug("Rebuild");
@@ -1048,35 +1326,38 @@ public class MapEnhancer : MonoBehaviour
 	private static void CreateTurntablePrefab()
 	{
 		var scale = 2.0f;
-		// Create a subtle circular marker - color from settings
 		var tex = new Texture2D(128, 128, TextureFormat.RGBA32, false);
 		var pixels = new Color[128 * 128];
-			var markerColor = UMM.Loader.Settings.TurntableMarkerColor;		for (int y = 0; y < 128; y++)
+		var markerColor = UMM.Loader.Settings.TurntableMarkerColor;
+		if (markerColor.a < 0.2f)
+		{
+			markerColor.a = 1f;
+		}
+
+		for (int y = 0; y < 128; y++)
 		{
 			for (int x = 0; x < 128; x++)
 			{
 				float dx = (x - 64f) / 64f;
 				float dy = (y - 64f) / 64f;
 				float dist = Mathf.Sqrt(dx * dx + dy * dy);
-				
+
 				if (dist < 0.9f)
 				{
-					// Fill with settings color at 40% opacity
 					pixels[y * 128 + x] = new Color(
 						markerColor.r,
 						markerColor.g,
 						markerColor.b,
-						markerColor.a * 0.4f
+						markerColor.a * 0.75f
 					);
 				}
 				else if (dist < 1.0f)
 				{
-					// Subtle border - slightly darker at 30% opacity
 					pixels[y * 128 + x] = new Color(
-						markerColor.r * 0.7f,
-						markerColor.g * 0.7f,
-						markerColor.b * 0.7f,
-						markerColor.a * 0.3f
+						markerColor.r * 0.6f,
+						markerColor.g * 0.6f,
+						markerColor.b * 0.6f,
+						markerColor.a * 0.9f
 					);
 				}
 				else
@@ -1085,10 +1366,12 @@ public class MapEnhancer : MonoBehaviour
 				}
 			}
 		}
+
 		tex.SetPixels(pixels);
 		tex.Apply();
 		tex.name = "MapTurntableIcon";
-		tex.wrapMode = TextureWrapMode.Clamp;		var sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+		tex.wrapMode = TextureWrapMode.Clamp;
+		var sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f));
 		sprite.name = "MapTurntableIcon";
 		
 		_turntablePrefab = Instantiate<MapIcon>(TrainController.Shared.locomotiveMapIconPrefab, prefabHolder.transform);
@@ -1233,10 +1516,6 @@ public class MapEnhancer : MonoBehaviour
 	private void GatherTurntables()
 	{
 		_turntableHelpers.Clear();
-		
-		// Skip if turntable control is disabled
-		if (!UMM.Loader.Settings.EnableTurntableControl)
-			return;
 			
 		var turntableControllers = FindObjectsOfType<TurntableController>(true);
 		Loader.Log($"Found {turntableControllers.Length} turntable(s) in scene");
@@ -1259,15 +1538,13 @@ public class MapEnhancer : MonoBehaviour
 			{
 				helper = controller.gameObject.AddComponent<TurntableHelper>();
 			}
+			helper.EnsureInitialized();
 			
-			// Set callback to rebuild map after rotation
-			helper.OnRotationComplete = () => 
-			{
-				if (MapWindow.instance != null && MapWindow.instance._window.IsShown)
-				{
-					MapBuilder.Shared.Rebuild();
-				}
-			};
+		// Set callback to rebuild map after rotation
+		helper.OnRotationComplete = () => 
+		{
+			Instance?.RefreshMapAfterTurntableRotation();
+		};
 			
 			_turntableHelpers.Add(helper);
 		}
@@ -1281,13 +1558,18 @@ public class MapEnhancer : MonoBehaviour
 	{
 		// Wait for all TurntableHelper Awake() calls to complete
 		// Inactive turntables that were just activated may take several frames to initialize
-		const int maxWaitFrames = 20; // Increased from 10 to 20 frames
+		const int maxWaitFrames = 120;
 		int frameCount = 0;
 		
 		while (frameCount < maxWaitFrames)
 		{
 			yield return null;
 			frameCount++;
+
+			foreach (var helper in _turntableHelpers)
+			{
+				helper?.EnsureInitialized();
+			}
 			
 			// Check if all helpers are fully initialized
 			if (_turntableHelpers.All(h => h != null && h.IsInitialized))
@@ -1372,7 +1654,7 @@ public class MapEnhancer : MonoBehaviour
 		var image = mapIcon.GetComponentInChildren<Image>();
 		if (image != null)
 		{
-			image.enabled = UMM.Loader.Settings.EnableTurntableControl && UMM.Loader.Settings.ShowTurntableMarkers;
+			image.enabled = UMM.Loader.Settings.ShowTurntableMarkers;
 		}
 		
 		// Increase the RectTransform size for the clickable area
@@ -1396,11 +1678,17 @@ public class MapEnhancer : MonoBehaviour
 			ShowTurntableControl(helper, clockwise);
 		};
 	}
-	
+
 	private static void ShowTurntableControl(TurntableHelper helper, bool clockwise)
 	{
 		if (helper == null || helper.Controller == null)
 			return;
+
+		if (IsClientMultiplayer() && !IsHostMultiplayer())
+		{
+			Loader.Log("Turntable map controls are host-only in multiplayer.");
+			return;
+		}
 
 		// Check if turntable control is disabled in settings
 		if (!UMM.Loader.Settings.EnableTurntableControl)
@@ -1413,7 +1701,7 @@ public class MapEnhancer : MonoBehaviour
 		if (!Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl) && 
 		    !Input.GetKey(KeyCode.LeftAlt) && !Input.GetKey(KeyCode.RightAlt))
 		{
-			Loader.Log("Hold Ctrl+Click for clockwise, Alt+Click for counterclockwise, or Shift+Click for 180° rotation");
+			Loader.Log("Turntable controls: Ctrl+Click = clockwise, Alt+Click = counterclockwise, Shift+Click = 180°. Plain click shows this hint only.");
 			return;
 		}
 
@@ -1440,6 +1728,12 @@ public class MapEnhancer : MonoBehaviour
 	{
 		if (helper == null || helper.Controller == null)
 			return;
+
+		if (IsClientMultiplayer() && !IsHostMultiplayer())
+		{
+			Loader.Log("Turntable map controls are host-only in multiplayer.");
+			return;
+		}
 
 		// Check if turntable control is disabled in settings
 		if (!UMM.Loader.Settings.EnableTurntableControl)
