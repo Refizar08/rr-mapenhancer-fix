@@ -25,6 +25,7 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 - 🎯 Smooth rotation of the turntable using the Map controls
 - 🛜 Multiplayer sync for host and client
 - 🚂 When the table fouled, the rotation is blocked
+- 📄 Enhanced Switch Reset Logging
 - 🎮 Three rotation modes: Ctrl+Click (clockwise), Alt+Click (counterclockwise), Shift+Click (180°)
 
 #### **Turntable Control from Map** (v1.5.4.2)
