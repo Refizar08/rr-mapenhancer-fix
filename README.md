@@ -1,6 +1,6 @@
 # Map Enhancer - Community Fix Edition
 
-[![Version](https://img.shields.io/badge/version-1.5.4.2-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
+[![Version](https://img.shields.io/badge/version-1.5.4.3-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
 [![Game](https://img.shields.io/badge/Railroader-2025-green.svg)](https://store.steampowered.com/app/1683150/Railroader/)
 
 > **Note:** This is a maintained fork by me with fixes and improvements for Map Enhancer. I had pull from the main repository but provide working updates and bug fixes until Vanguard officially updates the original mod.
@@ -256,7 +256,19 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 
 ## 📜 Version History
 
-### v1.5.4.2 (2025-11-14) - Latest
+
+### v1.5.4.3 (2026-05-01) - Latest
+
+- 🚀 Major: Improved multiplayer synchronization for turntable rotation
+  - Host-authoritative, property-change-based replication for reliable turntable control
+  - Peers observe and apply turntable rotation requests deterministically (reduces missed/queued clicks)
+  - Removed fragile sequence gating and timeout-dependent completion waits
+- 📝 Added: Improved switch-reset audit handling and host-side logging (console + MapEnhancer_SwitchResets.log)
+- 🔧 Fix: Turntable marker visibility and prefab tweaks (brown center circle now shows reliably)
+- 🎨 Fix: Restored freight car destination color logic for modded areas
+- 🛠️ Misc: Various multiplayer robustness and logging improvements
+
+### v1.5.4.2 (2025-11-14)
 
 - 🎯 Added: Turntable control from map with Ctrl/Alt/Shift+Click rotation modes
 - 🎨 Added: Turntable visual markers with customizable color and opacity

@@ -2,6 +2,11 @@
 	"Releases": [
 		{
 			"Id": "MapEnhancer",
+			"Version": "1.5.4.3",
+			"DownloadUrl": "https://github.com/Refizar08/rr-mapenhancer-fix/releases/download/v1.5.4.3/MapEnhancer_v1.5.4.3.zip"
+		},
+		{
+			"Id": "MapEnhancer",
 			"Version": "1.5.4.2",
 			"DownloadUrl": "https://github.com/Refizar08/rr-mapenhancer-fix/releases/download/v1.5.4.2/MapEnhancer_v1.5.4.2.zip"
 		},
