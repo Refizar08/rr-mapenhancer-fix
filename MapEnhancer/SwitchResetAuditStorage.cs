@@ -37,6 +37,23 @@ internal sealed class SwitchResetAuditStorage : IPropertyAccessControlDelegate, 
         _keyValueObject[key] = state.ToPropertyValue();
     }
 
+    public string[] Keys()
+    {
+        return _keyValueObject.Keys.ToArray();
+    }
+
+    public bool TryRead(string key, out SwitchResetAuditState? state)
+    {
+        state = null;
+        if (!_keyValueObject.Keys.Contains(key))
+        {
+            return false;
+        }
+
+        state = SwitchResetAuditState.FromPropertyValue(_keyValueObject[key]);
+        return true;
+    }
+
     public IDisposable ObserveRequests(Action<string, SwitchResetAuditState?> action)
     {
         return _keyValueObject.ObserveKeyChanges((key, keyChange) =>

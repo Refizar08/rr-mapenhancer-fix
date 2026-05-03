@@ -116,11 +116,17 @@ public class MapEnhancer : MonoBehaviour
 	private IDisposable _switchResetAuditObserver;
 	private readonly HashSet<string> _processedSwitchResetRequestIds = new HashSet<string>();
 	private readonly HashSet<string> _processedSwitchResetLogIds = new HashSet<string>();
+	private DateTime _sessionStartTime;
+	private bool _hasLoggedOldSwitchResetReplayIgnored;
+	private int _switchResetRequestSlot;
+	private int _switchResetLogSlot;
 	private int _hostSwitchResetActionCount = 0;
 	private int _hostSwitchesResetTotal = 0;
 	private Coroutine _turntableMapRefreshCoroutine;
 	private const string SwitchResetAuditRequestPrefix = "request:";
 	private const string SwitchResetAuditLogPrefix = "log:";
+	private const int MaxSwitchResetAuditEntries = 200;
+	private const int MaxProcessedSwitchResetIds = 1000;
 
 	internal TurntableRequestStorage TurntableSyncStorage => _turntableRequestStorage;
 
@@ -319,6 +325,7 @@ public class MapEnhancer : MonoBehaviour
 	private void OnMapDidLoad(MapDidLoadEvent evt)
 	{
 		Loader.LogDebug("OnMapDidLoad");
+		_sessionStartTime = DateTime.UtcNow;
 		if (MapState == MapStates.MAPLOADED) return;
 
 		MapState = MapStates.MAPLOADED;
@@ -486,9 +493,12 @@ public class MapEnhancer : MonoBehaviour
 		_switchResetAuditObserver = _switchResetAuditStorage.ObserveRequests(OnSwitchResetAuditRequest);
 		_processedSwitchResetRequestIds.Clear();
 		_processedSwitchResetLogIds.Clear();
+		_hasLoggedOldSwitchResetReplayIgnored = false;
+		_switchResetRequestSlot = 0;
+		_switchResetLogSlot = 0;
 		_hostSwitchResetActionCount = 0;
 		_hostSwitchesResetTotal = 0;
-		Loader.LogDebug("Initialized switch reset audit storage for multiplayer host logging");
+		Loader.LogDebug($"Initialized switch reset audit storage. Ignoring entries older than {_sessionStartTime:yyyy-MM-dd HH:mm:ss} UTC");
 	}
 
 	private void DestroySwitchResetAuditStorage()
@@ -504,6 +514,8 @@ public class MapEnhancer : MonoBehaviour
 		}
 		_processedSwitchResetRequestIds.Clear();
 		_processedSwitchResetLogIds.Clear();
+		_switchResetRequestSlot = 0;
+		_switchResetLogSlot = 0;
 	}
 
 	internal void RefreshMapAfterTurntableRotation()
@@ -940,12 +952,28 @@ public class MapEnhancer : MonoBehaviour
 			return;
 		}
 
+		// Filter out old entries from previous sessions by timestamp
+		if (DateTime.TryParse(request.TimestampUtc, out var requestTimestamp))
+		{
+			if (requestTimestamp < _sessionStartTime)
+			{
+				if (!_hasLoggedOldSwitchResetReplayIgnored)
+				{
+					Loader.LogDebug($"Ignoring restored switch reset entries from before session start ({_sessionStartTime:yyyy-MM-dd HH:mm:ss} UTC)");
+					_hasLoggedOldSwitchResetReplayIgnored = true;
+				}
+				return;
+			}
+		}
+
 		if (key.StartsWith(SwitchResetAuditLogPrefix, StringComparison.Ordinal))
 		{
-			if (!_processedSwitchResetLogIds.Add(key))
+			if (string.IsNullOrWhiteSpace(request.RequestId) || !_processedSwitchResetLogIds.Add(request.RequestId))
 			{
 				return;
 			}
+
+			MaybeTrimProcessedSwitchResetIds();
 
 			WriteSwitchResetAuditLocal(
 				request.RequesterName,
@@ -967,6 +995,8 @@ public class MapEnhancer : MonoBehaviour
 			return;
 		}
 
+		MaybeTrimProcessedSwitchResetIds();
+
 		PublishSwitchResetAuditLog(request.RequesterName, request.Action, request.SwitchCount, "client-request");
 	}
 
@@ -977,16 +1007,18 @@ public class MapEnhancer : MonoBehaviour
 			return false;
 		}
 
+		var requestId = SwitchResetAuditRequestPrefix + Guid.NewGuid().ToString("N");
 		var request = new SwitchResetAuditState(
-			SwitchResetAuditRequestPrefix + Guid.NewGuid().ToString("N"),
+			requestId,
 			userName,
 			actionText,
 			switchCount,
 			DateTime.UtcNow.ToString("O"));
+		var key = GetNextSwitchResetAuditKey(SwitchResetAuditRequestPrefix, isLogKey: false);
 
 		StateManager.ApplyLocal(new PropertyChange(
 			SwitchResetAuditStorage.ObjectId,
-			request.RequestId,
+			key,
 			PropertyValueConverter.RuntimeToSnapshot(request.ToPropertyValue())));
 
 		return true;
@@ -1001,9 +1033,10 @@ public class MapEnhancer : MonoBehaviour
 
 		_hostSwitchResetActionCount++;
 		_hostSwitchesResetTotal += Mathf.Max(0, switchCount);
-		var key = SwitchResetAuditLogPrefix + Guid.NewGuid().ToString("N");
+		var key = GetNextSwitchResetAuditKey(SwitchResetAuditLogPrefix, isLogKey: true);
+		var requestId = SwitchResetAuditLogPrefix + Guid.NewGuid().ToString("N");
 		var state = new SwitchResetAuditState(
-			key,
+			requestId,
 			userName,
 			actionText,
 			switchCount,
@@ -1013,6 +1046,31 @@ public class MapEnhancer : MonoBehaviour
 
 		_switchResetAuditStorage.Write(key, state);
 		return true;
+	}
+
+	private string GetNextSwitchResetAuditKey(string prefix, bool isLogKey)
+	{
+		if (isLogKey)
+		{
+			_switchResetLogSlot = (_switchResetLogSlot % MaxSwitchResetAuditEntries) + 1;
+			return prefix + _switchResetLogSlot.ToString("D4");
+		}
+
+		_switchResetRequestSlot = (_switchResetRequestSlot % MaxSwitchResetAuditEntries) + 1;
+		return prefix + _switchResetRequestSlot.ToString("D4");
+	}
+
+	private void MaybeTrimProcessedSwitchResetIds()
+	{
+		if (_processedSwitchResetRequestIds.Count > MaxProcessedSwitchResetIds * 2)
+		{
+			_processedSwitchResetRequestIds.Clear();
+		}
+
+		if (_processedSwitchResetLogIds.Count > MaxProcessedSwitchResetIds * 2)
+		{
+			_processedSwitchResetLogIds.Clear();
+		}
 	}
 
 	private void WriteSwitchResetAuditLocal(string userName, string actionText, int switchCount, string source, int hostSequence, int hostTotal)

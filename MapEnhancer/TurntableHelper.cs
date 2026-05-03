@@ -19,6 +19,22 @@ namespace MapEnhancer;
 
 public class TurntableHelper : MonoBehaviour
 {
+    private sealed class PendingTurntableRequest
+    {
+        public PendingTurntableRequest(int trackNodeIndex, int sequence, string context)
+        {
+            TrackNodeIndex = trackNodeIndex;
+            Sequence = sequence;
+            Context = context;
+        }
+
+        public int TrackNodeIndex { get; }
+
+        public int Sequence { get; }
+
+        public string Context { get; }
+    }
+
     private TurntableController _controller;
     private List<TrackNode> _nodes;
     private HashSet<int> _activeIndexes;
@@ -34,10 +50,12 @@ public class TurntableHelper : MonoBehaviour
     private float _lastNetworkAngleSyncTime = 0f;
     private IDisposable _requestObserver;
     private int _requestSequence = 0;
+    private readonly Queue<PendingTurntableRequest> _pendingRequests = new Queue<PendingTurntableRequest>();
 
     private const float ROTATION_COOLDOWN = 0.5f;
     private const float SMOOTH_ROTATION_SPEED_DEG_PER_SEC = 30f;
     private const float NETWORK_ANGLE_SYNC_INTERVAL_SEC = 0.2f;
+    private const int MAX_PENDING_SYNC_REQUESTS = 8;
 
     public TurntableController Controller => _controller;
     public List<int> ActiveTrackIndexes => _activeIndexes?.ToList() ?? new List<int>();
@@ -145,11 +163,7 @@ public class TurntableHelper : MonoBehaviour
             return false;
         }
 
-        _isRotating = true;
-        _lastRotationTime = Time.time;
-        _rotationStartedAt = Time.time;
-        _targetIndex = trackNodeIndex;
-        return BeginLocalRotation(trackNodeIndex, "single-player only");
+        return StartTurntableRequest(trackNodeIndex, "single-player only");
     }
 
     private bool BeginLocalRotation(int trackNodeIndex, string context)
@@ -255,6 +269,7 @@ public class TurntableHelper : MonoBehaviour
         _isRotating = false;
         Loader.Log(message);
         OnRotationComplete?.Invoke();
+        StartNextQueuedRequest();
     }
 
     private void RegisterTurntableRequestObserver()
@@ -301,16 +316,74 @@ public class TurntableHelper : MonoBehaviour
 
         if (_isRotating)
         {
-            Loader.LogDebug("TurntableHelper: New synced request arrived while rotating; replacing in-flight target");
-            _isRotating = false;
-            _targetAngle = null;
+            EnqueueRequest(request, context);
+            return;
+        }
+
+        StartTurntableRequest(request.TrackNodeIndex, context);
+    }
+
+    private void EnqueueRequest(TurntableRequestState request, string context)
+    {
+        if (_targetIndex == request.TrackNodeIndex)
+        {
+            Loader.LogDebug($"TurntableHelper: Request seq {request.Sequence} matches in-flight target {_targetIndex}, ignoring duplicate");
+            return;
+        }
+
+        if (_pendingRequests.Any(pending => pending.Sequence == request.Sequence && pending.TrackNodeIndex == request.TrackNodeIndex))
+        {
+            Loader.LogDebug($"TurntableHelper: Request seq {request.Sequence} already queued, skipping duplicate");
+            return;
+        }
+
+        if (_pendingRequests.Count >= MAX_PENDING_SYNC_REQUESTS)
+        {
+            _pendingRequests.Dequeue();
+            Loader.LogDebug("TurntableHelper: Pending request queue full, dropped oldest synced request");
+        }
+
+        _pendingRequests.Enqueue(new PendingTurntableRequest(request.TrackNodeIndex, request.Sequence, context));
+        Loader.LogDebug($"TurntableHelper: Queued synced request seq {request.Sequence} for track {request.TrackNodeIndex}");
+    }
+
+    private bool StartTurntableRequest(int trackNodeIndex, string context)
+    {
+        if (_nodes == null || trackNodeIndex < 0 || trackNodeIndex >= _nodes.Count)
+        {
+            Loader.Log($"Turntable rotation FAILED: Invalid track node index {trackNodeIndex}");
+            return false;
         }
 
         _isRotating = true;
         _lastRotationTime = Time.time;
         _rotationStartedAt = Time.time;
-        _targetIndex = request.TrackNodeIndex;
-        BeginLocalRotation(request.TrackNodeIndex, context);
+        _targetIndex = trackNodeIndex;
+        if (!BeginLocalRotation(trackNodeIndex, context))
+        {
+            _isRotating = false;
+            return false;
+        }
+
+        return true;
+    }
+
+    private void StartNextQueuedRequest()
+    {
+        while (_pendingRequests.Count > 0)
+        {
+            var pending = _pendingRequests.Dequeue();
+            if (GetCurrentIndex() == pending.TrackNodeIndex)
+            {
+                Loader.LogDebug($"TurntableHelper: Skipping queued request seq {pending.Sequence} because turntable is already at track {pending.TrackNodeIndex}");
+                continue;
+            }
+
+            if (StartTurntableRequest(pending.TrackNodeIndex, pending.Context))
+            {
+                return;
+            }
+        }
     }
 
     private bool IsMultiplayer()
@@ -721,6 +794,7 @@ public class TurntableHelper : MonoBehaviour
     {
         _requestObserver?.Dispose();
         _requestObserver = null;
+        _pendingRequests.Clear();
     }
 
     private bool IsTurntableFouled(out string reason)
