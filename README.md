@@ -1,6 +1,6 @@
 # Map Enhancer - Community Fix Edition
 
-[![Version](https://img.shields.io/badge/version-1.5.4.3-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
+[![Version](https://img.shields.io/badge/version-1.5.4.4-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
 [![Game](https://img.shields.io/badge/Railroader-2025-green.svg)](https://store.steampowered.com/app/1683150/Railroader/)
 
 > **Note:** This is a maintained fork by me with fixes and improvements for Map Enhancer. I had pull from the main repository but provide working updates and bug fixes until Vanguard officially updates the original mod.
@@ -21,7 +21,21 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 
 ### 🆕 Community Fork Exclusive Features
 
+#### **Road Crossing Markers** (v1.5.4.4)
+Image1: https://i.ibb.co/Vc09M3PP/image.png
+Image2: https://i.ibb.co/6RncbXKt/image.png
+- 🛣️ Added: Road crossing markers on the map (uses `level-crossing.png`)
+- 🧭 Added: Clustering for nearby crossing points to avoid duplicate icons at multi-track crossings
+- ⚙️ Added: `Show Road Crossing Markers` toggle in settings
+- 🔎 Added: `CrossingMarkerScale` slider (default: 0.3)
+
+#### **Turntable Clearance Control** (v1.5.4.4)
+- 🚂 Added: `Check Turntable Clearance/Fouling Before Rotation` toggle
+- ✅ Default: Enabled, but can be disabled if the automatic fouling check is too strict
+
 #### **Turntable Control from Map** (v1.5.4.3)
+Image1: https://i.ibb.co/spwqpXrW/image.png
+Video: https://youtu.be/zMtQZzuPjXE
 - 🎯 Smooth rotation of the turntable using the Map controls
 - 🛜 Multiplayer sync for host and client
 - 🚂 When the table fouled, the rotation is blocked
@@ -186,6 +200,7 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 This fork includes **ALL original Map Enhancer features** plus community improvements:
 
 - 🎯 **Turntable control from map** - Control turntables with Ctrl/Alt/Shift+Click (v1.5.4.2)
+- 🚂 **Turntable clearance toggle** - Optionally bypass fouling checks when manual rotation should still work (v1.5.4.4)
 - 🗺️ **Modded spawn points support** - Load custom teleport locations from mods (v1.5.4.2)
 - 🎨 **Fixed car icon colors** - Freight car delivery status works on modded maps (v1.5.4.2)
 - 🔧 **AR Branch & FYC compatibility** - Fixed switches and map UI issues (v1.5.4.1)
@@ -223,6 +238,8 @@ All settings are available and shown when game first launches.
 ### Interaction Settings
 - **Require Double Click**: Toggle for double-click requirement on map interactions
 - **Show Turntable Markers**: Toggle visibility of turntable markers (default: ON)
+- **Check Turntable Clearance/Fouling Before Rotation**: Block turntable rotation when fouled (default: ON)
+- **Check Turntable Clearance/Fouling Before Rotation**: Block turntable rotation when fouled (default: ON)
 
 ### Keyboard Bindings
 - **Toggle Map Size**: Default `Z` (customizable)
@@ -264,16 +281,26 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 ## 📜 Version History
 
 
+### v1.5.4.4 (2026-05-13)
+
+- 🛣️ Added: Road crossing markers on the map (uses `level-crossing.png`)
+- 🧭 Added: Clustering for nearby crossing points to avoid duplicate icons at multi-track crossings
+- ⚙️ Added: `Show Road Crossing Markers` toggle in settings
+- 🔎 Added: `CrossingMarkerScale` slider (default: 0.3) to control icon size
+- 🚂 Added: `Check Turntable Clearance/Fouling Before Rotation` toggle (default: ON)
+- 🧰 Fixed: Hardened PNG loader and prefab cleanup to prevent fallback placeholder icons
+- 📦 Changed: Packaging updated to include only `level-crossing.png` for crossing icons
+
 ### v1.5.4.3 (2026-05-01) - Latest
 
 - 🚀 Major: Improved multiplayer synchronization for turntable rotation
   - Host-authoritative, property-change-based replication for reliable turntable control
   - Peers observe and apply turntable rotation requests deterministically (reduces missed/queued clicks)
   - Removed fragile sequence gating and timeout-dependent completion waits
-- 📝 Added: Improved switch-reset audit handling and host-side logging (console + MapEnhancer_SwitchResets.log)
-- 🔧 Fix: Turntable marker visibility and prefab tweaks (brown center circle now shows reliably)
-- 🎨 Fix: Restored freight car destination color logic for modded areas
-- 🛠️ Misc: Various multiplayer robustness and logging improvements
+  - 📝 Added: Improved switch-reset audit handling and host-side logging (console + MapEnhancer_SwitchResets.log)
+  - 🔧 Fix: Turntable marker visibility and prefab tweaks (brown center circle now shows reliably)
+  - 🎨 Fix: Restored freight car destination color logic for modded areas
+  - 🛠️ Misc: Various multiplayer robustness and logging improvements
 
 ### v1.5.4.2 (2025-11-14)
 

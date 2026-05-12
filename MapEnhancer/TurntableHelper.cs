@@ -146,10 +146,17 @@ public class TurntableHelper : MonoBehaviour
             return false;
         }
 
-        if (IsTurntableFouled(out var foulReason))
+        if (Loader.Settings?.CheckTurntableClearance ?? true)
         {
-            Loader.Log($"Turntable rotation BLOCKED: {foulReason}");
-            return false;
+            if (IsTurntableFouled(out var foulReason))
+            {
+                Loader.Log($"Turntable rotation BLOCKED: {foulReason}");
+                return false;
+            }
+        }
+        else
+        {
+            Loader.LogDebug("TurntableHelper: Clearance/fouling check disabled by setting");
         }
 
         if (IsMultiplayer())

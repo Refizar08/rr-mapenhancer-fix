@@ -124,6 +124,7 @@ public static class Loader
 	// Turntable marker settings
 	public bool ShowTurntableMarkers = true; // Show clickable markers on turntables
 	public bool EnableTurntableControl = true; // Enable turntable rotation from map (network-synced for multiplayer)
+	public bool CheckTurntableClearance = true; // Block rotation when the table is fouled by rolling stock
 	public Color TurntableMarkerColor = new Color(0.8f, 0.5f, 0.2f, 0.4f); // Orange with transparency
 	public bool ShowRoadCrossingMarkers = true; // Show road crossing markers on the map
 	public float CrossingMarkerScale = 0.3f; // Scale for road crossing markers on map
@@ -173,6 +174,26 @@ public static class Loader
 		if (Settings.EnableTurntableControl)
 		{
 			GUILayout.Label("  ℹ️ Turntable rotations are synchronized to all players in multiplayer.", GUILayout.ExpandWidth(true));
+
+			using (new GUILayout.HorizontalScope())
+			{
+				GUILayout.Space(20);
+				var checkClearance = GUILayout.Toggle(Settings.CheckTurntableClearance, "Check Turntable Clearance/Fouling Before Rotation");
+				if (Settings.CheckTurntableClearance != checkClearance)
+				{
+					Settings.CheckTurntableClearance = checkClearance;
+					changed = true;
+				}
+			}
+
+			if (Settings.CheckTurntableClearance)
+			{
+				GUILayout.Label("  ℹ️ Rotation is blocked when the table is fouled or a car overlaps the table boundary.", GUILayout.ExpandWidth(true));
+			}
+			else
+			{
+				GUILayout.Label("  ℹ️ Clearance checks are disabled. Use carefully if rolling stock is close to the table.", GUILayout.ExpandWidth(true));
+			}
 			
 			using (new GUILayout.HorizontalScope())
 			{
@@ -444,6 +465,7 @@ public static class Loader
 			Settings.DoubleClick = false;
 			Settings.ShowTurntableMarkers = true;
 			Settings.EnableTurntableControl = true;
+			Settings.CheckTurntableClearance = true;
 			Settings.ShowRoadCrossingMarkers = true;
 			Settings.CrossingMarkerScale = 0.3f;
 			
