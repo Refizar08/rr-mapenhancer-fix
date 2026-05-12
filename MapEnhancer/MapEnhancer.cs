@@ -48,6 +48,7 @@ public class MapEnhancer : MonoBehaviour
 	public GameObject JunctionsBranch;
 	public GameObject JunctionsMainline;
 	public GameObject Turntables;
+	public GameObject Crossings;
 	private List<Entry> junctionMarkers = new List<Entry>();
 	private CullingGroup cullingGroup;
 	private BoundingSphere[] cullingSpheres;
@@ -107,8 +108,19 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	private static MapIcon _crossingPrefab;
+	public static MapIcon? crossingPrefab
+	{
+		get
+		{
+			if (_crossingPrefab == null) CreateCrossingPrefab();
+			return _crossingPrefab;
+		}
+	}
+
 	private Coroutine traincarColorUpdater;
 	private static List<TurntableHelper> _turntableHelpers = new List<TurntableHelper>();
+	private readonly List<MapIcon> _crossingMarkers = new List<MapIcon>();
 	private GameObject _turntableSyncStorageGo;
 	private TurntableRequestStorage _turntableRequestStorage;
 	private GameObject _switchResetAuditStorageGo;
@@ -314,6 +326,8 @@ public class MapEnhancer : MonoBehaviour
 			_traincarPrefab = null;
 			if (_turntablePrefab != null) Destroy(_turntablePrefab);
 			_turntablePrefab = null;
+			if (_crossingPrefab != null) Destroy(_crossingPrefab);
+			_crossingPrefab = null;
 
 			DestroyTraincarMarkers();
 			DestroyFlareMarkers();
@@ -340,6 +354,8 @@ public class MapEnhancer : MonoBehaviour
 		JunctionsBranch.transform.SetParent(Junctions.transform, false);
 		Turntables = new GameObject("Turntables");
 		Turntables.transform.SetParent(Junctions.transform, false);
+		Crossings = new GameObject("Road Crossings");
+		Crossings.transform.SetParent(Junctions.transform, false);
 		Junctions.SetActive(MapWindow.instance._window.IsShown);
 
 		MapWindow.instance._window.OnShownDidChange += OnMapWindowShown;
@@ -356,6 +372,7 @@ public class MapEnhancer : MonoBehaviour
 		InitializeTurntableSyncStorage();
 		InitializeSwitchResetAuditStorage();
 		GatherTurntables();
+		GatherCrossingMarkers();
 
 		Messenger.Default.Register<WorldDidMoveEvent>(this, new Action<WorldDidMoveEvent>(this.WorldDidMove));
 		var worldPos = WorldTransformer.GameToWorld(new Vector3(0, 0, 0));
@@ -420,6 +437,7 @@ public class MapEnhancer : MonoBehaviour
 
 		DestroyTurntableSyncStorage();
 		DestroySwitchResetAuditStorage();
+		DestroyCrossingMarkers();
 
 		MapBuilder.Shared.mapCamera.GetComponent<UniversalAdditionalCameraData>().requiresDepthOption = CameraOverrideOption.On;
 
@@ -448,6 +466,125 @@ public class MapEnhancer : MonoBehaviour
 		{
 			CreateMapSettings();
 		}
+	}
+
+	private static bool IsCrossingMarkerName(string name)
+	{
+		return name.IndexOf("crossing", StringComparison.OrdinalIgnoreCase) >= 0;
+	}
+
+	private sealed class CrossingMarkerCluster
+	{
+		public readonly List<TrackMarker> Members = new List<TrackMarker>();
+		public Vector3 GamePositionSum;
+
+		public Vector3 Center => Members.Count == 0 ? Vector3.zero : GamePositionSum / Members.Count;
+	}
+
+	private void GatherCrossingMarkers()
+	{
+		_crossingMarkers.Clear();
+
+		if (!Settings.ShowRoadCrossingMarkers || Crossings == null)
+		{
+			return;
+		}
+
+		var trackMarkers = FindObjectsOfType<TrackMarker>(true);
+		Loader.Log($"Found {trackMarkers.Length} track marker(s) while searching for road crossings");
+
+		var clusters = new List<CrossingMarkerCluster>();
+		const float clusterRadius = 25f;
+
+		foreach (var trackMarker in trackMarkers)
+		{
+			if (trackMarker == null)
+			{
+				continue;
+			}
+
+			if (!IsCrossingMarkerName(trackMarker.gameObject.name))
+			{
+				continue;
+			}
+
+			var positionRotation = trackMarker.PositionRotation;
+			if (!positionRotation.HasValue)
+			{
+				continue;
+			}
+
+			var gamePosition = positionRotation.Value.Position;
+			var cluster = clusters.FirstOrDefault(candidate => Vector3.Distance(candidate.Center, gamePosition) <= clusterRadius);
+			if (cluster == null)
+			{
+				cluster = new CrossingMarkerCluster();
+				clusters.Add(cluster);
+			}
+
+			cluster.Members.Add(trackMarker);
+			cluster.GamePositionSum += gamePosition;
+		}
+
+		foreach (var cluster in clusters)
+		{
+			var mapIcon = AddCrossingMarker(cluster);
+			if (mapIcon != null)
+			{
+				_crossingMarkers.Add(mapIcon);
+			}
+		}
+
+		Loader.Log($"Created {_crossingMarkers.Count} road crossing marker(s) from {clusters.Count} clustered location(s)");
+	}
+
+	private void DestroyCrossingMarkers()
+	{
+		foreach (var mapIcon in _crossingMarkers)
+		{
+			if (mapIcon == null)
+			{
+				continue;
+			}
+
+			DestroyImmediate(mapIcon.gameObject);
+		}
+
+		_crossingMarkers.Clear();
+	}
+
+	private static MapIcon? AddCrossingMarker(CrossingMarkerCluster cluster)
+	{
+		if (cluster == null || cluster.Members.Count == 0 || Instance == null || Instance.Crossings == null)
+		{
+			return null;
+		}
+
+		var mapIcon = Instantiate<MapIcon>(crossingPrefab, Instance.Crossings.transform);
+		var gamePosition = cluster.Center;
+		mapIcon.transform.position = WorldTransformer.GameToWorld(gamePosition) + Vector3.up * 1200f;
+		mapIcon.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+		mapIcon.SetText("");
+
+		var scaleOverride = mapIcon.gameObject.AddComponent<CrossingIconScaleOverride>();
+		var image = mapIcon.GetComponentInChildren<Image>();
+		if (image != null)
+		{
+			image.enabled = Loader.Settings.ShowRoadCrossingMarkers;
+		}
+
+		var rectTransform = mapIcon.GetComponent<RectTransform>();
+		if (rectTransform != null)
+		{
+			rectTransform.sizeDelta = new Vector2(220f, 220f);
+		}
+
+		return scaleOverride != null ? mapIcon : null;
+	}
+
+	private static Sprite? LoadCrossingSprite()
+	{
+		return LoadTexture("level-crossing.png", "MapCrossingIcon");
 	}
 
 	private void InitializeTurntableSyncStorage()
@@ -1344,6 +1481,15 @@ public class MapEnhancer : MonoBehaviour
 				Mathf.Clamp(MapBuilder.Shared.mapCamera.orthographicSize, Settings.MapZoomMin, Settings.MapZoomMax);
 			mapBuilder.UpdateForZoom();
 		}
+
+		if (Crossings != null)
+		{
+			Crossings.SetActive(Settings.ShowRoadCrossingMarkers && mapBuilder.NormalizedScale <= Loader.Settings.MarkerCutoff);
+			if (Settings.ShowRoadCrossingMarkers && _crossingMarkers.Count == 0)
+			{
+				GatherCrossingMarkers();
+			}
+		}
 		resizer.SetMinimumSize(Settings.WindowSizeMin);
 	}
 
@@ -1441,17 +1587,79 @@ public class MapEnhancer : MonoBehaviour
 		image.transform.localScale = Vector3.one * scale;
 	}
 
+	private static void CreateCrossingPrefab()
+	{
+		var scale = 0.5f;
+		var sprite = LoadCrossingSprite();
+		if (sprite == null)
+		{
+			var tex = new Texture2D(128, 128, TextureFormat.RGBA32, false);
+			var pixels = new Color[128 * 128];
+			var fill = new Color(0.12f, 0.1f, 0.06f, 0.9f);
+			var border = new Color(0.95f, 0.8f, 0.15f, 1f);
+			var cross = new Color(0.98f, 0.96f, 0.9f, 1f);
+
+			for (int y = 0; y < 128; y++)
+			{
+				for (int x = 0; x < 128; x++)
+				{
+					bool isBorder = x < 10 || x >= 118 || y < 10 || y >= 118;
+					bool diagonalA = Math.Abs(x - y) <= 10;
+					bool diagonalB = Math.Abs((127 - x) - y) <= 10;
+					pixels[y * 128 + x] = isBorder ? border : (diagonalA || diagonalB ? cross : fill);
+				}
+			}
+
+			tex.SetPixels(pixels);
+			tex.Apply();
+			tex.name = "MapCrossingIconFallback";
+			tex.wrapMode = TextureWrapMode.Clamp;
+			sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+			sprite.name = "MapCrossingIconFallback";
+		}
+
+		_crossingPrefab = Instantiate<MapIcon>(TrainController.Shared.locomotiveMapIconPrefab, prefabHolder.transform);
+		GameObject crossingMarker = _crossingPrefab.gameObject;
+		crossingMarker.hideFlags = HideFlags.HideAndDontSave;
+		crossingMarker.name = "Map Icon Crossing";
+		if (_crossingPrefab.Text != null) DestroyImmediate(_crossingPrefab.Text.gameObject);
+		var image = _crossingPrefab.GetComponentInChildren<Image>();
+		image.sprite = sprite;
+		image.color = Color.white;
+		image.preserveAspect = true;
+		image.transform.localScale = Vector3.one * scale;
+	}
+
 	public static Sprite? LoadTexture(string fileName, string name)
 	{
 		string iconPath = Path.Combine(Loader.ModEntry.Path, fileName);
-		var tex = new Texture2D(128, 128, TextureFormat.DXT5, false);
-		tex.name = name;
-		tex.wrapMode = TextureWrapMode.Clamp;
-		if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(iconPath)))
+		if (!File.Exists(iconPath))
 		{
-			Loader.Log("Unable to load traincar icon!");
+			Loader.Log($"Icon file not found: {iconPath}");
 			return null;
 		}
+
+		var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+		tex.name = name;
+		tex.wrapMode = TextureWrapMode.Clamp;
+		byte[] bytes;
+		try
+		{
+			bytes = File.ReadAllBytes(iconPath);
+		}
+		catch (Exception ex)
+		{
+			Loader.Log($"Failed reading icon '{fileName}': {ex.Message}");
+			return null;
+		}
+
+		if (!ImageConversion.LoadImage(tex, bytes))
+		{
+			Loader.Log($"Unable to decode icon PNG '{fileName}'");
+			return null;
+		}
+
+		tex.filterMode = FilterMode.Bilinear;
 		Sprite sprite = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f));
 		sprite.name = name;
 		return sprite;
@@ -2221,6 +2429,26 @@ public class MapEnhancer : MonoBehaviour
 		}
 	}
 
+	private class CrossingIconScaleOverride : MonoBehaviour
+	{
+		private Image _image;
+
+		void Start()
+		{
+			_image = GetComponentInChildren<Image>();
+		}
+
+		void LateUpdate()
+		{
+			var scale = Mathf.Clamp(Loader.Settings.CrossingMarkerScale, 0.1f, 1.0f);
+			if (_image != null)
+			{
+				_image.transform.localScale = Vector3.one * scale;
+			}
+			transform.localScale = Vector3.one * scale;
+		}
+	}
+
 	private class SignalIconColorizer : MonoBehaviour
 	{
 		private CTCSignal signal;
@@ -2269,6 +2497,7 @@ public class MapEnhancer : MonoBehaviour
 		{
 			Instance?.JunctionsBranch?.SetActive(__instance.NormalizedScale <= Loader.Settings.MarkerCutoff);
 			Instance?.Turntables?.SetActive(__instance.NormalizedScale <= Loader.Settings.MarkerCutoff);
+			Instance?.Crossings?.SetActive(__instance.NormalizedScale <= Loader.Settings.MarkerCutoff && Loader.Settings.ShowRoadCrossingMarkers);
 		}
 	}
 

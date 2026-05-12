@@ -125,6 +125,8 @@ public static class Loader
 	public bool ShowTurntableMarkers = true; // Show clickable markers on turntables
 	public bool EnableTurntableControl = true; // Enable turntable rotation from map (network-synced for multiplayer)
 	public Color TurntableMarkerColor = new Color(0.8f, 0.5f, 0.2f, 0.4f); // Orange with transparency
+	public bool ShowRoadCrossingMarkers = true; // Show road crossing markers on the map
+	public float CrossingMarkerScale = 0.3f; // Scale for road crossing markers on map
 
 	public override void Save(UnityModManager.ModEntry modEntry)
 		{
@@ -182,6 +184,35 @@ public static class Loader
 					changed = true;
 				}
 			}
+
+				using (new GUILayout.HorizontalScope())
+				{
+					GUILayout.Space(20);
+					var showCrossings = GUILayout.Toggle(Settings.ShowRoadCrossingMarkers, "Show Road Crossing Markers");
+					if (Settings.ShowRoadCrossingMarkers != showCrossings)
+					{
+						Settings.ShowRoadCrossingMarkers = showCrossings;
+						changed = true;
+					}
+				}
+
+				if (Settings.ShowRoadCrossingMarkers)
+				{
+					using (new GUILayout.HorizontalScope())
+					{
+						GUILayout.Space(20);
+						var crossingScale = (float)Math.Round(
+							GUILayout.HorizontalSlider(Settings.CrossingMarkerScale, 0.1f, 1.0f, GUILayout.Width(UnityModManager.UI.Scale(160))),
+							2,
+							MidpointRounding.AwayFromZero);
+						GUILayout.Label($"Crossing Marker Scale: {crossingScale}", GUILayout.ExpandWidth(true));
+						if (Math.Abs(Settings.CrossingMarkerScale - crossingScale) > 0.0001f)
+						{
+							Settings.CrossingMarkerScale = crossingScale;
+							changed = true;
+						}
+					}
+				}
 		}
 		else
 		{
@@ -413,6 +444,8 @@ public static class Loader
 			Settings.DoubleClick = false;
 			Settings.ShowTurntableMarkers = true;
 			Settings.EnableTurntableControl = true;
+			Settings.ShowRoadCrossingMarkers = true;
+			Settings.CrossingMarkerScale = 0.3f;
 			
 			// Reset scale and size settings
 			Settings.FlareScale = 0.6f;
