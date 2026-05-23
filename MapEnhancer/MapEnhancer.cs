@@ -49,6 +49,7 @@ public class MapEnhancer : MonoBehaviour
 	public GameObject JunctionsMainline;
 	public GameObject Turntables;
 	public GameObject Crossings;
+	public GameObject GradeMarkers;
 	private List<Entry> junctionMarkers = new List<Entry>();
 	private CullingGroup cullingGroup;
 	private BoundingSphere[] cullingSpheres;
@@ -146,6 +147,9 @@ public class MapEnhancer : MonoBehaviour
 	private static HashSet<string> _industrialSegments = new HashSet<string>();
 	private static HashSet<string> _passengerStopSegments = new HashSet<string>();
 	private static Dictionary<string, Color> _industrialSegmentColors = new Dictionary<string, Color>();
+	private static Dictionary<string, GradeInfo> _segmentGrades = new Dictionary<string, GradeInfo>();
+	private static Dictionary<string, string> _industrialSegmentNames = new Dictionary<string, string>();
+	private static Dictionary<string, string> _passengerStopSegmentNames = new Dictionary<string, string>();
 	private static bool _isMapFullyLoaded = false;
 	
 	public static HashSet<string> mainlineSegments
@@ -191,6 +195,417 @@ public class MapEnhancer : MonoBehaviour
 		}
 		
 		Loader.LogDebug($"Identified {_mainlineSegments.Count} mainline segments and {_mainlineSwitches.Count} mainline switches");
+	}
+
+	private float ComputeSegmentGrade(TrackSegment segment)
+	{
+		if (segment == null || segment.a == null || segment.b == null) return 0f;
+
+		Vector3 aPos = WorldTransformer.WorldToGame(segment.a.transform.position);
+		Vector3 bPos = WorldTransformer.WorldToGame(segment.b.transform.position);
+
+		float rise = bPos.y - aPos.y;
+		float run = Vector3.Distance(new Vector3(aPos.x, 0f, aPos.z), new Vector3(bPos.x, 0f, bPos.z));
+
+		if (run < 0.1f) return 0f;
+
+		return (rise / run) * 100f;
+	}
+
+	private void ComputeSegmentGrades()
+	{
+		_segmentGrades.Clear();
+		foreach (var kvp in Graph.Shared.segments)
+		{
+			var segment = kvp.Value;
+			if (segment == null || segment.a == null || segment.b == null) continue;
+
+			Vector3 a = WorldTransformer.WorldToGame(segment.a.transform.position);
+			Vector3 b = WorldTransformer.WorldToGame(segment.b.transform.position);
+
+			float rise = b.y - a.y;
+			float run = Vector2.Distance(new Vector2(a.x, a.z), new Vector2(b.x, b.z));
+
+			if (run < 1f) continue;
+
+			float grade = (rise / run) * 100f;
+			float length = Vector3.Distance(a, b);
+
+			_segmentGrades[segment.id] = new GradeInfo
+			{
+				Grade = grade,
+				Midpoint = (a + b) / 2f,
+				Length = length
+			};
+		}
+		Loader.LogDebug($"Computed grades for {_segmentGrades.Count} segments");
+	}
+
+	private float DistanceToLineSegmentXZ(Vector3 p, Vector3 a, Vector3 b)
+	{
+		float l2 = (a.x - b.x) * (a.x - b.x) + (a.z - b.z) * (a.z - b.z);
+		if (l2 == 0f) return Vector2.Distance(new Vector2(p.x, p.z), new Vector2(a.x, a.z));
+		float t = ((p.x - a.x) * (b.x - a.x) + (p.z - a.z) * (b.z - a.z)) / l2;
+		t = Mathf.Clamp01(t);
+		float dx = p.x - (a.x + t * (b.x - a.x));
+		float dz = p.z - (a.z + t * (b.z - a.z));
+		return Mathf.Sqrt(dx * dx + dz * dz);
+	}
+
+	private GameObject? _gradeTooltipGo;
+	private TextMeshProUGUI? _gradeTooltipText;
+	private RectTransform? _gradeTooltipRect;
+
+	private void CreateGradeTooltip()
+	{
+		if (_gradeTooltipGo != null) return;
+
+		_gradeTooltipGo = new GameObject("Grade Tooltip", typeof(RectTransform));
+		_gradeTooltipRect = _gradeTooltipGo.GetComponent<RectTransform>();
+		_gradeTooltipRect.SetParent(MapWindow.instance._window.transform, false);
+		
+		_gradeTooltipRect.anchorMin = new Vector2(0f, 1f);
+		_gradeTooltipRect.anchorMax = new Vector2(0f, 1f);
+		_gradeTooltipRect.pivot = new Vector2(0f, 1f);
+		_gradeTooltipRect.anchoredPosition = new Vector2(10f, -40f);
+		
+		var bgImage = _gradeTooltipGo.AddComponent<Image>();
+		bgImage.color = new Color(0.1f, 0.1f, 0.1f, 0.85f);
+		
+		var textGo = new GameObject("Text", typeof(RectTransform));
+		textGo.transform.SetParent(_gradeTooltipGo.transform, false);
+		_gradeTooltipText = textGo.AddComponent<TextMeshProUGUI>();
+		_gradeTooltipText.fontSize = 12f;
+		_gradeTooltipText.color = Color.white;
+		_gradeTooltipText.alignment = TextAlignmentOptions.Center;
+		_gradeTooltipText.raycastTarget = false;
+		
+		var fitter = textGo.AddComponent<ContentSizeFitter>();
+		fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+		fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+		
+		var verticalLayout = _gradeTooltipGo.AddComponent<VerticalLayoutGroup>();
+		verticalLayout.childAlignment = TextAnchor.MiddleCenter;
+		verticalLayout.padding = new RectOffset(10, 10, 8, 8);
+		verticalLayout.childControlWidth = true;
+		verticalLayout.childControlHeight = true;
+		
+		var tooltipFitter = _gradeTooltipGo.AddComponent<ContentSizeFitter>();
+		tooltipFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+		tooltipFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+		_gradeTooltipGo.SetActive(false);
+	}
+
+	private GameObject? _gradeLegendGo;
+
+	private void CreateGradeLegend()
+	{
+		if (_gradeLegendGo != null) return;
+
+		_gradeLegendGo = new GameObject("Grade Legend", typeof(RectTransform));
+		var rect = _gradeLegendGo.GetComponent<RectTransform>();
+		rect.SetParent(MapWindow.instance._window.transform, false);
+
+		rect.anchorMin = new Vector2(0f, 0f);
+		rect.anchorMax = new Vector2(0f, 0f);
+		rect.pivot = new Vector2(0f, 0f);
+		rect.anchoredPosition = new Vector2(10f, 10f);
+
+		var bgImage = _gradeLegendGo.AddComponent<Image>();
+		bgImage.color = new Color(0.1f, 0.1f, 0.1f, 0.85f);
+
+		var layout = _gradeLegendGo.AddComponent<VerticalLayoutGroup>();
+		layout.padding = new RectOffset(10, 10, 10, 10);
+		layout.spacing = 6f;
+		layout.childAlignment = TextAnchor.MiddleLeft;
+		layout.childControlWidth = true;
+		layout.childControlHeight = true;
+
+		var fitter = _gradeLegendGo.AddComponent<ContentSizeFitter>();
+		fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+		fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+		var titleGo = new GameObject("Title", typeof(RectTransform));
+		titleGo.transform.SetParent(_gradeLegendGo.transform, false);
+		var titleText = titleGo.AddComponent<TextMeshProUGUI>();
+		titleText.text = "<b>Grade Legend</b>";
+		titleText.fontSize = 11f;
+		titleText.color = Color.white;
+		titleText.alignment = TextAlignmentOptions.Left;
+
+		var titleFitter = titleGo.AddComponent<ContentSizeFitter>();
+		titleFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+		titleFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+		AddLegendItem("Flat (< 0.1%)", Settings.GradeColorFlat);
+		AddLegendItem("0 - 1%", Settings.GradeColor0to1);
+		AddLegendItem("1 - 2%", Settings.GradeColor1to2);
+		AddLegendItem("2 - 3%", Settings.GradeColor2to3);
+		AddLegendItem("3% +", Settings.GradeColorAbove3);
+
+		_gradeLegendGo.SetActive(false);
+	}
+
+	private void AddLegendItem(string label, Color color)
+	{
+		if (_gradeLegendGo == null) return;
+
+		var itemGo = new GameObject(label, typeof(RectTransform));
+		itemGo.transform.SetParent(_gradeLegendGo.transform, false);
+
+		var layout = itemGo.AddComponent<HorizontalLayoutGroup>();
+		layout.spacing = 8f;
+		layout.childAlignment = TextAnchor.MiddleLeft;
+		layout.childControlWidth = false;
+		layout.childControlHeight = false;
+
+		var boxGo = new GameObject("ColorBox", typeof(RectTransform));
+		boxGo.transform.SetParent(itemGo.transform, false);
+		var img = boxGo.AddComponent<Image>();
+		img.color = color;
+		var boxRect = boxGo.GetComponent<RectTransform>();
+		boxRect.sizeDelta = new Vector2(12f, 12f);
+
+		var textGo = new GameObject("Text", typeof(RectTransform));
+		textGo.transform.SetParent(itemGo.transform, false);
+		var text = textGo.AddComponent<TextMeshProUGUI>();
+		text.text = label;
+		text.fontSize = 10f;
+		text.color = Color.white;
+		text.alignment = TextAlignmentOptions.Left;
+
+		var textFitter = textGo.AddComponent<ContentSizeFitter>();
+		textFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+		textFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+		var itemFitter = itemGo.AddComponent<ContentSizeFitter>();
+		itemFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+		itemFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+	}
+
+	private void UpdateGradeLegendColors()
+	{
+		if (_gradeLegendGo != null)
+		{
+			Destroy(_gradeLegendGo);
+			_gradeLegendGo = null;
+		}
+
+		if (Settings.EnableGradeColorOverlay && MapWindow.instance != null && MapWindow.instance._window.IsShown)
+		{
+			CreateGradeLegend();
+			_gradeLegendGo!.SetActive(true);
+		}
+	}
+
+	private Color GetGradeMarkerColor(float grade)
+	{
+		var absGrade = Mathf.Abs(grade);
+		if (absGrade < 0.1f) return Settings.GradeColorFlat;
+		if (absGrade < 1.0f) return Settings.GradeColor0to1;
+		if (absGrade < 2.0f) return Settings.GradeColor1to2;
+		if (absGrade < 3.0f) return Settings.GradeColor2to3;
+		return Settings.GradeColorAbove3;
+	}
+
+	private readonly List<MapIcon> _gradeMarkers = new List<MapIcon>();
+
+	private void GatherGradeMarkers()
+	{
+		DestroyGradeMarkers();
+
+        if (!Settings.ShowGradeMarkers || GradeMarkers == null)
+            return;
+
+		const float minSpacing = 400f; // minimum distance between markers
+        var spawnedPositions = new List<Vector3>();
+
+        // Collect qualified mainline segments
+        var qualifiedSegments = new List<(TrackSegment segment, GradeInfo info)>();
+        foreach (var kvp in Graph.Shared.segments)
+        {
+            var segment = kvp.Value;
+            if (segment == null || segment.a == null || segment.b == null)
+                continue;
+            if (!mainlineSegments.Contains(segment.id))
+                continue;
+            if (!_segmentGrades.TryGetValue(segment.id, out var info))
+                continue;
+            if (Mathf.Abs(info.Grade) < Settings.GradeMarkerMinIntensity)
+                continue;
+            qualifiedSegments.Add((segment, info));
+        }
+
+        // Build adjacency map (node -> segments)
+        var nodeToSegments = new Dictionary<string, List<TrackSegment>>();
+        foreach (var (segment, _) in qualifiedSegments)
+        {
+            if (!nodeToSegments.TryGetValue(segment.a.id, out var listA))
+            {
+                listA = new List<TrackSegment>();
+                nodeToSegments[segment.a.id] = listA;
+            }
+            listA.Add(segment);
+            if (!nodeToSegments.TryGetValue(segment.b.id, out var listB))
+            {
+                listB = new List<TrackSegment>();
+                nodeToSegments[segment.b.id] = listB;
+            }
+            listB.Add(segment);
+        }
+
+        var visited = new HashSet<string>();
+        foreach (var (startSeg, _) in qualifiedSegments)
+        {
+            if (visited.Contains(startSeg.id)) continue;
+
+            // BFS to collect connected cluster
+            var clusterSegments = new List<TrackSegment>();
+            var queue = new Queue<TrackSegment>();
+            queue.Enqueue(startSeg);
+            visited.Add(startSeg.id);
+            while (queue.Count > 0)
+            {
+                var seg = queue.Dequeue();
+                clusterSegments.Add(seg);
+                // gather neighbors via shared nodes
+                var neighbors = new List<TrackSegment>();
+                if (seg.a != null && nodeToSegments.TryGetValue(seg.a.id, out var na)) neighbors.AddRange(na);
+                if (seg.b != null && nodeToSegments.TryGetValue(seg.b.id, out var nb)) neighbors.AddRange(nb);
+                foreach (var nbr in neighbors)
+                {
+                    if (visited.Contains(nbr.id)) continue;
+                    if (!qualifiedSegments.Any(q => q.segment.id == nbr.id)) continue;
+					var currentGrade = Mathf.Abs(_segmentGrades[seg.id].Grade);
+					var neighborGrade = Mathf.Abs(_segmentGrades[nbr.id].Grade);
+					if (Mathf.Abs(currentGrade - neighborGrade) > 0.5f) continue;
+                    visited.Add(nbr.id);
+                    queue.Enqueue(nbr);
+                }
+            }
+
+            float totalLength = 0f;
+			float totalSignedGrade = 0f;
+			float peakAbsGrade = 0f;
+            foreach (var seg in clusterSegments)
+            {
+                var info = _segmentGrades[seg.id];
+                totalLength += info.Length;
+				totalSignedGrade += info.Grade * info.Length;
+				peakAbsGrade = Mathf.Max(peakAbsGrade, Mathf.Abs(info.Grade));
+            }
+
+            // Find midpoint along cumulative length
+            float target = totalLength / 2f;
+            float acc = 0f;
+            Vector3 markerPos = _segmentGrades[clusterSegments[0].id].Midpoint;
+			Vector3 markerSide = Vector3.zero;
+            foreach (var seg in clusterSegments)
+            {
+                var info = _segmentGrades[seg.id];
+                if (acc + info.Length >= target)
+                {
+                    float t = (target - acc) / info.Length;
+                    var aPos = WorldTransformer.WorldToGame(seg.a.transform.position);
+                    var bPos = WorldTransformer.WorldToGame(seg.b.transform.position);
+                    markerPos = Vector3.Lerp(aPos, bPos, t);
+					markerSide = Vector3.Cross(Vector3.up, (bPos - aPos).normalized);
+					markerSide.y = 0f;
+					if (markerSide.sqrMagnitude > 0f)
+					{
+						markerSide.Normalize();
+					}
+                    break;
+                }
+                acc += info.Length;
+            }
+
+            if (IsTooClose(markerPos, spawnedPositions, minSpacing))
+                continue;
+
+			markerPos += markerSide * 25f;
+			var worldPos = WorldTransformer.GameToWorld(markerPos);
+			var netGrade = totalLength > 0f ? totalSignedGrade / totalLength : 0f;
+			var gradeSign = Mathf.Abs(netGrade) > 0.01f ? Mathf.Sign(netGrade) : Mathf.Sign(_segmentGrades[clusterSegments[0].id].Grade);
+			if (gradeSign == 0f)
+				gradeSign = 1f;
+			var displayGrade = peakAbsGrade * gradeSign;
+
+			CreateMarkerAt(worldPos, displayGrade);
+
+			spawnedPositions.Add(markerPos);
+        }
+
+		bool IsTooClose(Vector3 candidate, List<Vector3> existing, float spacing)
+		{
+			foreach (var p in existing)
+			{
+				if (Vector3.Distance(candidate, p) < spacing)
+					return true;
+			}
+			return false;
+		}
+
+		void CreateMarkerAt(Vector3 worldPos, float grade)
+		{
+			string FormatGradeText(float grade)
+			{
+				var absGrade = Mathf.Abs(grade);
+				var symbolCount = absGrade >= 2.5f ? 3 : absGrade >= 1.7f ? 2 : 1;
+				var symbols = new string('^', symbolCount);
+				return $"{symbols} {grade:+0.0;-0.0}%";
+			}
+
+			var mapIcon = Instantiate<MapIcon>(
+				TrainController.Shared.locomotiveMapIconPrefab,
+				GradeMarkers.transform);
+
+			mapIcon.name = $"GradeMarker_{worldPos}";
+
+			mapIcon.transform.position = worldPos + Vector3.up * 2200f;
+
+			// Keep icon flat on map
+			mapIcon.transform.localRotation =
+				Quaternion.Euler(90f,0f,0f);
+
+			var image = mapIcon.GetComponentInChildren<Image>();
+			if(image != null)
+				image.enabled = false;
+
+			mapIcon.SetText(FormatGradeText(grade));
+
+			if(mapIcon.Text != null)
+			{
+				mapIcon.Text.color = GetGradeMarkerColor(grade);
+				mapIcon.Text.fontSize = 14f;
+				mapIcon.Text.textWrappingMode = TextWrappingModes.NoWrap;
+				mapIcon.Text.overflowMode = TextOverflowModes.Overflow;
+
+				// Rotate ONLY the text
+				mapIcon.Text.transform.rotation =
+					Quaternion.LookRotation(
+						-MapBuilder.Shared.mapCamera.transform.forward,
+						MapBuilder.Shared.mapCamera.transform.up
+					);
+				// Flip text face
+				mapIcon.Text.transform.Rotate(0f,180f,0f);
+			}
+
+			_gradeMarkers.Add(mapIcon);
+		}
+	}
+
+	private void DestroyGradeMarkers()
+	{
+		foreach (var marker in _gradeMarkers)
+		{
+			if (marker != null)
+			{
+				DestroyImmediate(marker.gameObject);
+			}
+		}
+		_gradeMarkers.Clear();
 	}
 
 	// TODO: Remove this entire method when cleaning up non-visual-only mode code
@@ -390,6 +805,16 @@ public class MapEnhancer : MonoBehaviour
 		// Ensure industrial tracks are properly set after our reclassification
 		ReclassifyIndustrialTracks();
 
+		// Initialize GradeMarkers parent
+		GradeMarkers = new GameObject("Grade Markers");
+		GradeMarkers.transform.SetParent(Junctions.transform, false);
+
+		// Compute segment grades
+		ComputeSegmentGrades();
+
+		// Spawn grade markers
+		GatherGradeMarkers();
+
 		Rebuild();
 		resizer = MapResizer.Create();
 		OnSettingsChanged();
@@ -416,6 +841,9 @@ public class MapEnhancer : MonoBehaviour
 		_passengerStopSegments.Clear();
 		_industrialSegments.Clear();
 		_industrialSegmentColors.Clear();
+		_segmentGrades.Clear();
+		_industrialSegmentNames.Clear();
+		_passengerStopSegmentNames.Clear();
 		_spawnPointCategories.Clear();
 		
 		Messenger.Default.Unregister<WorldDidMoveEvent>(this);
@@ -438,6 +866,15 @@ public class MapEnhancer : MonoBehaviour
 		DestroyTurntableSyncStorage();
 		DestroySwitchResetAuditStorage();
 		DestroyCrossingMarkers();
+		DestroyGradeMarkers();
+
+		if (_gradeTooltipGo != null) Destroy(_gradeTooltipGo);
+		_gradeTooltipGo = null;
+		_gradeTooltipText = null;
+		_gradeTooltipRect = null;
+
+		if (_gradeLegendGo != null) Destroy(_gradeLegendGo);
+		_gradeLegendGo = null;
 
 		MapBuilder.Shared.mapCamera.GetComponent<UniversalAdditionalCameraData>().requiresDepthOption = CameraOverrideOption.On;
 
@@ -462,9 +899,24 @@ public class MapEnhancer : MonoBehaviour
 	{
 		Junctions?.SetActive(shown);
 
-		if (shown && mapSettings == null)
+		if (shown)
 		{
-			CreateMapSettings();
+			if (mapSettings == null)
+			{
+				CreateMapSettings();
+			}
+			UpdateGradeLegendColors();
+		}
+		else
+		{
+			if (_gradeLegendGo != null)
+			{
+				_gradeLegendGo.SetActive(false);
+			}
+			if (_gradeTooltipGo != null)
+			{
+				_gradeTooltipGo.SetActive(false);
+			}
 		}
 	}
 
@@ -697,7 +1149,7 @@ public class MapEnhancer : MonoBehaviour
 		var settingsGo = new GameObject("Map Settings", typeof(RectTransform));
 		mapSettings = settingsGo.GetComponent<RectTransform>();
 		mapSettings.SetParent(MapWindow.instance._window.transform, false);
-		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 120);
+		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 210);
 		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Right, 4, 145);
 
 		settingsGo.AddComponent<GraphicRaycaster>();
@@ -706,6 +1158,24 @@ public class MapEnhancer : MonoBehaviour
 		{
 			builder.FieldLabelWidth = 105f;
 			builder.AddField("Follow Mode", builder.AddToggle(() => mapFollowMode, (x) => mapFollowMode = x));
+			
+			builder.AddField("Hover Grade", builder.AddToggle(() => Settings.ShowGradeOnHover, (x) => {
+				Settings.ShowGradeOnHover = x;
+				Settings.Save(Loader.ModEntry);
+			}));
+			
+			builder.AddField("Grade Markers", builder.AddToggle(() => Settings.ShowGradeMarkers, (x) => {
+				Settings.ShowGradeMarkers = x;
+				Settings.Save(Loader.ModEntry);
+				OnSettingsChanged();
+			}));
+			
+			builder.AddField("Color Overlay", builder.AddToggle(() => Settings.EnableGradeColorOverlay, (x) => {
+				Settings.EnableGradeColorOverlay = x;
+				Settings.Save(Loader.ModEntry);
+				OnSettingsChanged();
+			}));
+
 			TMP_Dropdown? dropdown = null;
 			var teleportLocations = GetTeleportLocations();
 		dropdown = builder.AddDropdown(teleportLocations, 0, (index) =>
@@ -1490,6 +1960,20 @@ public class MapEnhancer : MonoBehaviour
 				GatherCrossingMarkers();
 			}
 		}
+
+		if (GradeMarkers != null)
+		{
+			GradeMarkers.SetActive(Settings.ShowGradeMarkers && mapBuilder.NormalizedScale <= Loader.Settings.MarkerCutoff);
+			GatherGradeMarkers();
+		}
+
+		UpdateGradeLegendColors();
+
+		if (MapWindow.instance != null && MapWindow.instance._window.IsShown)
+		{
+			MapBuilder.Shared.Rebuild();
+		}
+
 		resizer.SetMinimumSize(Settings.WindowSizeMin);
 	}
 
@@ -2063,7 +2547,113 @@ public class MapEnhancer : MonoBehaviour
 		var mapDrag = MapWindow.instance.mapDrag;
 		if (mapDrag._isDragging) mapCameraTarget = null;
 
-		if (!mapDrag._pointerOver || !GameInput.IsMouseOverGameWindow(mapWindow._window)) return;
+		if (!mapDrag._pointerOver || !GameInput.IsMouseOverGameWindow(mapWindow._window))
+		{
+			if (_gradeTooltipGo != null && _gradeTooltipGo.activeSelf)
+			{
+				_gradeTooltipGo.SetActive(false);
+			}
+			return;
+		}
+
+		if (Settings.ShowGradeOnHover)
+		{
+			Vector2 viewportNormalizedPoint = mapDrag.NormalizedMousePosition();
+			Ray ray = mapWindow.RayForViewportNormalizedPoint(viewportNormalizedPoint);
+			Vector3 mousePosWorld = ray.origin;
+
+			float pixelRadius = 20f;
+			float viewHeight = (mapCamera.targetTexture != null) ? mapCamera.targetTexture.height : Screen.height;
+			float gameRadius = pixelRadius * (2f * mapCamera.orthographicSize) / viewHeight;
+
+			TrackSegment? closestSegment = null;
+			float minDistance = float.MaxValue;
+
+			foreach (var kvp in Graph.Shared.segments)
+			{
+				var segment = kvp.Value;
+				if (segment == null || segment.a == null || segment.b == null) continue;
+
+				float dist = DistanceToLineSegmentXZ(mousePosWorld, segment.a.transform.position, segment.b.transform.position);
+				if (dist < minDistance)
+				{
+					minDistance = dist;
+					closestSegment = segment;
+				}
+			}
+
+			if (closestSegment != null && minDistance <= gameRadius)
+			{
+				if (_gradeTooltipGo == null)
+				{
+					CreateGradeTooltip();
+				}
+
+				float grade = 0f;
+				if (_segmentGrades.TryGetValue(closestSegment.id, out var info))
+				{
+					grade = info.Grade;
+				}
+				else
+				{
+					grade = ComputeSegmentGrade(closestSegment);
+				}
+
+				string lineType = "Branch Line";
+				if (_mainlineSegments.Contains(closestSegment.id))
+				{
+					lineType = "Main Line";
+				}
+				else if (_passengerStopSegments.Contains(closestSegment.id) && _passengerStopSegmentNames.TryGetValue(closestSegment.id, out string stationName))
+				{
+					lineType = stationName;
+				}
+				else if (_industrialSegments.Contains(closestSegment.id) && _industrialSegmentNames.TryGetValue(closestSegment.id, out string indName))
+				{
+					lineType = indName;
+				}
+
+				string sign = "";
+				string arrow = " ≈";
+				if (grade > 0.05f)
+				{
+					sign = "+";
+					arrow = " ▲";
+				}
+				else if (grade < -0.05f)
+				{
+					sign = "-";
+					arrow = " ▼";
+				}
+
+				if (_gradeTooltipText != null)
+				{
+					_gradeTooltipText.text = $"{lineType}\nGrade: {sign}{Mathf.Abs(grade):F1}%{arrow}";
+				}
+
+				if (_gradeTooltipGo != null)
+				{
+					if (!_gradeTooltipGo.activeSelf)
+					{
+						_gradeTooltipGo.SetActive(true);
+					}
+				}
+			}
+			else
+			{
+				if (_gradeTooltipGo != null && _gradeTooltipGo.activeSelf)
+				{
+					_gradeTooltipGo.SetActive(false);
+				}
+			}
+		}
+		else
+		{
+			if (_gradeTooltipGo != null && _gradeTooltipGo.activeSelf)
+			{
+				_gradeTooltipGo.SetActive(false);
+			}
+		}
 
 		if (GameInput.shared.PlaceFlare)
 		{
@@ -2294,6 +2884,8 @@ public class MapEnhancer : MonoBehaviour
 							_industrialSegments.Add(seg.id);
 							// Store the area color for this segment
 							_industrialSegmentColors[seg.id] = industryColor;
+							// Store the industry name for this segment
+							_industrialSegmentNames[seg.id] = __instance.name;
 							
 							// TODO: Remove this entire if block when cleaning up non-visual-only mode
 							// Only modify track class if not using visual-only mode (now always true)
@@ -2322,6 +2914,7 @@ public class MapEnhancer : MonoBehaviour
 				foreach (var seg in tspan._cachedSegments)
 				{
 					_passengerStopSegments.Add(seg.id);
+					_passengerStopSegmentNames[seg.id] = __instance.DisplayName;
 					Loader.LogDebug($"Found PassengerStop segment: {seg.id}");
 				}
 			}
@@ -2351,7 +2944,44 @@ public class MapEnhancer : MonoBehaviour
 				__result = Instance.Settings.TrackColorUnavailable;
 			}
 			return;
-		}			// Use HashSet lookups for visual-only mode (don't rely on track class property)
+		}
+
+		if (Instance.Settings.EnableGradeColorOverlay)
+		{
+			float absGrade = 0f;
+			if (_segmentGrades.TryGetValue(segment.id, out var info))
+			{
+				absGrade = Mathf.Abs(info.Grade);
+			}
+			else
+			{
+				absGrade = Mathf.Abs(Instance.ComputeSegmentGrade(segment));
+			}
+
+			if (absGrade < 0.1f)
+			{
+				__result = Instance.Settings.GradeColorFlat;
+			}
+			else if (absGrade < 1.0f)
+			{
+				__result = Instance.Settings.GradeColor0to1;
+			}
+			else if (absGrade < 2.0f)
+			{
+				__result = Instance.Settings.GradeColor1to2;
+			}
+			else if (absGrade < 3.0f)
+			{
+				__result = Instance.Settings.GradeColor2to3;
+			}
+			else
+			{
+				__result = Instance.Settings.GradeColorAbove3;
+			}
+			return;
+		}
+
+		// Use HashSet lookups for visual-only mode (don't rely on track class property)
 			// Default to branch color
 			__result = Instance.Settings.TrackColorBranch;
 			
@@ -2498,6 +3128,7 @@ public class MapEnhancer : MonoBehaviour
 			Instance?.JunctionsBranch?.SetActive(__instance.NormalizedScale <= Loader.Settings.MarkerCutoff);
 			Instance?.Turntables?.SetActive(__instance.NormalizedScale <= Loader.Settings.MarkerCutoff);
 			Instance?.Crossings?.SetActive(__instance.NormalizedScale <= Loader.Settings.MarkerCutoff && Loader.Settings.ShowRoadCrossingMarkers);
+			Instance?.GradeMarkers?.SetActive(__instance.NormalizedScale <= Loader.Settings.MarkerCutoff && Loader.Settings.ShowGradeMarkers);
 		}
 	}
 
@@ -2693,6 +3324,23 @@ public class MapEnhancer : MonoBehaviour
 			}
 			return false;
 		}
+	}
+
+	private class GradeInfo
+	{
+		public float Grade;
+		public Vector3 Midpoint;
+		public float Length;
+	}
+
+	private class GradeCluster
+	{
+		public List<TrackSegment> Segments = new List<TrackSegment>();
+		public float MaxUphillForward;
+		public float MaxUphillBackward;
+		public Vector3 Direction;
+		public Vector3 MarkerPosition;
+		public float TotalLength;
 	}
 }
 

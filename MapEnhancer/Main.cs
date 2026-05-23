@@ -129,6 +129,24 @@ public static class Loader
 	public bool ShowRoadCrossingMarkers = true; // Show road crossing markers on the map
 	public float CrossingMarkerScale = 0.3f; // Scale for road crossing markers on map
 
+	// Grade Indicators
+	public bool ShowGradeOnHover = true;
+	public bool ShowGradeMarkers = false;
+	public float GradeMarkerMinIntensity = 1.0f;
+	public bool EnableGradeColorOverlay = false;
+
+	public static readonly Color GradeColorFlatOrig = new Color(0.267f, 0.467f, 0.800f, 1f); // Blue
+	public static readonly Color GradeColor0to1Orig = new Color(0.133f, 0.733f, 0.267f, 1f); // Green
+	public static readonly Color GradeColor1to2Orig = new Color(0.867f, 0.800f, 0.133f, 1f); // Yellow
+	public static readonly Color GradeColor2to3Orig = new Color(0.933f, 0.533f, 0.067f, 1f); // Orange
+	public static readonly Color GradeColorAbove3Orig = new Color(0.800f, 0.133f, 0.133f, 1f); // Red
+
+	public Color GradeColorFlat = GradeColorFlatOrig;
+	public Color GradeColor0to1 = GradeColor0to1Orig;
+	public Color GradeColor1to2 = GradeColor1to2Orig;
+	public Color GradeColor2to3 = GradeColor2to3Orig;
+	public Color GradeColorAbove3 = GradeColorAbove3Orig;
+
 	public override void Save(UnityModManager.ModEntry modEntry)
 		{
 			Save(this, modEntry);
@@ -440,6 +458,78 @@ public static class Loader
 		{
 			GUILayout.Label("  ℹ️ Only vanilla locations will be shown in the teleport dropdown.", GUILayout.ExpandWidth(true));
 		}
+
+		GUILayout.Space(UnityModManager.UI.Scale(10));
+		GUILayout.Label("--- Grade Indicators ---", GUILayout.ExpandWidth(true));
+
+		GUILayout.Space(UnityModManager.UI.Scale(5));
+		using (new GUILayout.HorizontalScope())
+		{
+			var showHover = GUILayout.Toggle(Settings.ShowGradeOnHover, "Show Grade on Hover");
+			if (Settings.ShowGradeOnHover != showHover)
+			{
+				Settings.ShowGradeOnHover = showHover;
+				changed = true;
+			}
+		}
+
+		GUILayout.Space(UnityModManager.UI.Scale(5));
+		using (new GUILayout.HorizontalScope())
+		{
+			var showMarkers = GUILayout.Toggle(Settings.ShowGradeMarkers, "Show Grade Markers");
+			if (Settings.ShowGradeMarkers != showMarkers)
+			{
+				Settings.ShowGradeMarkers = showMarkers;
+				changed = true;
+			}
+		}
+
+		if (Settings.ShowGradeMarkers)
+		{
+			using (new GUILayout.HorizontalScope())
+			{
+				GUILayout.Space(20);
+				var minIntensity = (float)Math.Round(
+					GUILayout.HorizontalSlider(Settings.GradeMarkerMinIntensity, 0.1f, 3.0f, GUILayout.Width(UnityModManager.UI.Scale(160))),
+					2,
+					MidpointRounding.AwayFromZero);
+				GUILayout.Label($"Min Grade Marker Intensity: {minIntensity}%", GUILayout.ExpandWidth(true));
+				if (Math.Abs(Settings.GradeMarkerMinIntensity - minIntensity) > 0.0001f)
+				{
+					Settings.GradeMarkerMinIntensity = minIntensity;
+					changed = true;
+				}
+			}
+		}
+
+		GUILayout.Space(UnityModManager.UI.Scale(5));
+		using (new GUILayout.HorizontalScope())
+		{
+			var enableOverlay = GUILayout.Toggle(Settings.EnableGradeColorOverlay, "Enable Grade Color Overlay");
+			if (Settings.EnableGradeColorOverlay != enableOverlay)
+			{
+				Settings.EnableGradeColorOverlay = enableOverlay;
+				changed = true;
+			}
+		}
+
+		if (Settings.EnableGradeColorOverlay)
+		{
+			GUILayout.Label("Flat (< 0.1%) Grade Color");
+			if (DrawColor(ref Settings.GradeColorFlat)) changed = true;
+			
+			GUILayout.Label("0–1% Grade Color");
+			if (DrawColor(ref Settings.GradeColor0to1)) changed = true;
+			
+			GUILayout.Label("1–2% Grade Color");
+			if (DrawColor(ref Settings.GradeColor1to2)) changed = true;
+			
+			GUILayout.Label("2–3% Grade Color");
+			if (DrawColor(ref Settings.GradeColor2to3)) changed = true;
+			
+			GUILayout.Label("> 3% Grade Color");
+			if (DrawColor(ref Settings.GradeColorAbove3)) changed = true;
+		}
 		
 		// Reset to Defaults button
 		GUILayout.Space(UnityModManager.UI.Scale(15));
@@ -495,6 +585,17 @@ public static class Loader
 			
 			// Reset turntable marker color
 			Settings.TurntableMarkerColor = new Color(0.8f, 0.5f, 0.2f, 0.4f);
+
+			// Reset grade indicators settings
+			Settings.ShowGradeOnHover = true;
+			Settings.ShowGradeMarkers = false;
+			Settings.GradeMarkerMinIntensity = 1.0f;
+			Settings.EnableGradeColorOverlay = false;
+			Settings.GradeColorFlat = MapEnhancerSettings.GradeColorFlatOrig;
+			Settings.GradeColor0to1 = MapEnhancerSettings.GradeColor0to1Orig;
+			Settings.GradeColor1to2 = MapEnhancerSettings.GradeColor1to2Orig;
+			Settings.GradeColor2to3 = MapEnhancerSettings.GradeColor2to3Orig;
+			Settings.GradeColorAbove3 = MapEnhancerSettings.GradeColorAbove3Orig;
 			
 			Log("All settings have been reset to their default values.");
 		}

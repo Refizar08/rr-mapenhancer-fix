@@ -1,6 +1,6 @@
 # Map Enhancer - Community Fix Edition
 
-[![Version](https://img.shields.io/badge/version-1.5.4.4-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
+[![Version](https://img.shields.io/badge/version-1.5.4.5-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
 [![Game](https://img.shields.io/badge/Railroader-2025-green.svg)](https://store.steampowered.com/app/1683150/Railroader/)
 
 > **Note:** This is a maintained fork by me with fixes and improvements for Map Enhancer. I had pull from the main repository but provide working updates and bug fixes until Vanguard officially updates the original mod.
@@ -20,6 +20,12 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 ## ✨ Features
 
 ### 🆕 Community Fork Exclusive Features
+
+#### **Grade Indicators** (v1.5.4.5)
+- 📏 Added: Hover grade details for track segments, including grade percentage and uphill/downhill direction
+- 🏷️ Added: Optional grade text markers in the map window for segments above the configured intensity threshold
+- 🎨 Added: Grade color overlay with configurable grade-band colors
+- 🧭 Added: Marker placement offset beside the track for improved readability
 
 #### **Road Crossing Markers** (v1.5.4.4)
 Image1: https://i.ibb.co/Vc09M3PP/image.png
@@ -199,10 +205,11 @@ Video: https://youtu.be/zMtQZzuPjXE
 
 This fork includes **ALL original Map Enhancer features** plus community improvements:
 
-- 🎯 **Turntable control from map** - Control turntables with Ctrl/Alt/Shift+Click (v1.5.4.2)
+- 📏 **Grade indicators** - Hover details, map markers, and overlay coloring for track grades (v1.5.4.5)
 - 🚂 **Turntable clearance toggle** - Optionally bypass fouling checks when manual rotation should still work (v1.5.4.4)
 - 🗺️ **Modded spawn points support** - Load custom teleport locations from mods (v1.5.4.2)
 - 🎨 **Fixed car icon colors** - Freight car delivery status works on modded maps (v1.5.4.2)
+- 🎯 **Turntable control from map** - Control turntables with Ctrl/Alt/Shift+Click (v1.5.4.2)
 - 🔧 **AR Branch & FYC compatibility** - Fixed switches and map UI issues (v1.5.4.1)
 - 📝 **Switch reset logging** - Track who resets switches in multiplayer (v1.5.4.1)
 - 🎨 **Customizable unreachable track color** - Full control over unavailable track appearance (v1.5.4.1)
@@ -279,6 +286,15 @@ All feedback, bug reports, and feature requests are welcomed!
 Contributions are welcome! If you'd like to help improve Map Enhancer:
 
 ## 📜 Version History
+
+
+### v1.5.4.5 (2026-05-24)
+
+- 📏 Added: Hover grade details for track segments with grade percentage and direction
+- 🏷️ Added: Optional grade markers in the map window for segments above the configured intensity threshold
+- 🎨 Added: Grade color overlay with configurable colors for flat, gentle, moderate, and steep grades
+- 🧭 Improved: Grade markers are offset beside the track for easier reading
+- 🎨 Improved: Grade marker text now uses the same grade-band color palette as the overlay
 
 
 ### v1.5.4.4 (2026-05-13)

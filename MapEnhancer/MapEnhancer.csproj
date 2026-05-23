@@ -51,6 +51,9 @@
 		<Reference Include="UnityEngine.CoreModule">
 			<HintPath>$(RrManagedDir)\UnityEngine.CoreModule.dll</HintPath>
 		</Reference>
+		<Reference Include="UnityEngine.TextRenderingModule">
+			<HintPath>$(RrManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
+		</Reference>
 		<Reference Include="UnityEngine.IMGUIModule">
 			<HintPath>$(RrManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
 		</Reference>

@@ -409,3 +409,5 @@ Directory.Build.props
 
 # Ignore html
 *.html
+
+railroader.json

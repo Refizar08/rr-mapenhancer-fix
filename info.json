@@ -2,7 +2,10 @@
 	"Id": "MapEnhancer",
 	"DisplayName": "Map Enhancer",
 	"Author": "Vanguard",
-	"Version": "1.5.4.4",
+	"Contributors": [
+		"Reaper8f (Refizar08)"
+	],
+	"Version": "1.5.4.5",
 	"AssemblyName": "MapEnhancer.dll",
 	"EntryMethod": "MapEnhancer.UMM.Loader.Load",
 	"ManagerVersion": "0.32.4",
