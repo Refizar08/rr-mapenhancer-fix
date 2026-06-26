@@ -147,6 +147,13 @@ public static class Loader
 	public Color GradeColor2to3 = GradeColor2to3Orig;
 	public Color GradeColorAbove3 = GradeColorAbove3Orig;
 
+	// Train Intelligence Layer
+	public bool ShowTrainHoverDetails = true;
+	public bool ShowTrainDriver       = true;
+	public bool ShowTrainStats        = true;
+
+	// Tooltip customization removed: tooltips use plain formatting
+
 	public override void Save(UnityModManager.ModEntry modEntry)
 		{
 			Save(this, modEntry);
@@ -530,6 +537,44 @@ public static class Loader
 			GUILayout.Label("> 3% Grade Color");
 			if (DrawColor(ref Settings.GradeColorAbove3)) changed = true;
 		}
+
+		GUILayout.Space(UnityModManager.UI.Scale(10));
+		GUILayout.Label("--- Train Hover Info ---", GUILayout.ExpandWidth(true));
+		GUILayout.Space(UnityModManager.UI.Scale(5));
+		using (new GUILayout.HorizontalScope())
+		{
+			var showDetails = GUILayout.Toggle(Settings.ShowTrainHoverDetails, "Show Train Hover Details");
+			if (Settings.ShowTrainHoverDetails != showDetails)
+			{
+				Settings.ShowTrainHoverDetails = showDetails;
+				changed = true;
+			}
+		}
+
+		if (Settings.ShowTrainHoverDetails)
+		{
+			using (new GUILayout.HorizontalScope())
+			{
+				GUILayout.Space(20);
+				var showDriver = GUILayout.Toggle(Settings.ShowTrainDriver, "Show Driver Name");
+				if (Settings.ShowTrainDriver != showDriver)
+				{
+					Settings.ShowTrainDriver = showDriver;
+					changed = true;
+				}
+			}
+			using (new GUILayout.HorizontalScope())
+			{
+				GUILayout.Space(20);
+				var showStats = GUILayout.Toggle(Settings.ShowTrainStats, "Show Train Stats (speed, weight, cars, length)");
+				if (Settings.ShowTrainStats != showStats)
+				{
+					Settings.ShowTrainStats = showStats;
+					changed = true;
+				}
+			}
+			
+		}
 		
 		// Reset to Defaults button
 		GUILayout.Space(UnityModManager.UI.Scale(15));
@@ -596,6 +641,11 @@ public static class Loader
 			Settings.GradeColor1to2 = MapEnhancerSettings.GradeColor1to2Orig;
 			Settings.GradeColor2to3 = MapEnhancerSettings.GradeColor2to3Orig;
 			Settings.GradeColorAbove3 = MapEnhancerSettings.GradeColorAbove3Orig;
+
+			// Reset train hover info settings
+			Settings.ShowTrainHoverDetails = true;
+			Settings.ShowTrainDriver       = true;
+			Settings.ShowTrainStats        = true;
 			
 			Log("All settings have been reset to their default values.");
 		}

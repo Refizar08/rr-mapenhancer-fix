@@ -151,6 +151,13 @@ public class MapEnhancer : MonoBehaviour
 	private static Dictionary<string, string> _industrialSegmentNames = new Dictionary<string, string>();
 	private static Dictionary<string, string> _passengerStopSegmentNames = new Dictionary<string, string>();
 	private static bool _isMapFullyLoaded = false;
+
+	// Train Intelligence Layer
+	private Dictionary<string, TrainInfo> _trainInfoCache = new Dictionary<string, TrainInfo>();
+	private Coroutine? _trainInfoUpdater;
+	private GameObject? _trainTooltipGo;
+	private TextMeshProUGUI? _trainTooltipText;
+	private RectTransform? _trainTooltipRect;
 	
 	public static HashSet<string> mainlineSegments
 	{
@@ -295,6 +302,109 @@ public class MapEnhancer : MonoBehaviour
 		tooltipFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
 		_gradeTooltipGo.SetActive(false);
+	}
+
+	private void CreateTrainTooltip()
+	{
+		if (_trainTooltipGo != null) return;
+
+		_trainTooltipGo = new GameObject("Train Tooltip", typeof(RectTransform));
+		_trainTooltipRect = _trainTooltipGo.GetComponent<RectTransform>();
+		_trainTooltipRect.SetParent(MapWindow.instance._window.transform, false);
+		
+		_trainTooltipRect.anchorMin = new Vector2(0f, 1f);
+		_trainTooltipRect.anchorMax = new Vector2(0f, 1f);
+		_trainTooltipRect.pivot = new Vector2(0f, 1f);
+		_trainTooltipRect.anchoredPosition = new Vector2(10f, -110f);
+		
+			var bgImage = _trainTooltipGo.AddComponent<Image>();
+			// Plain tooltip background (no custom coloring)
+			bgImage.color = new Color(0.1f, 0.1f, 0.1f, 0.85f);
+		
+		var textGo = new GameObject("Text", typeof(RectTransform));
+		textGo.transform.SetParent(_trainTooltipGo.transform, false);
+			_trainTooltipText = textGo.AddComponent<TextMeshProUGUI>();
+			_trainTooltipText.fontSize = 12f;
+			// Plain white text for tooltips
+			_trainTooltipText.color = Color.white;
+		_trainTooltipText.alignment = TextAlignmentOptions.Left;
+		_trainTooltipText.raycastTarget = false;
+		
+		var fitter = textGo.AddComponent<ContentSizeFitter>();
+		fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+		fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+		
+		var verticalLayout = _trainTooltipGo.AddComponent<VerticalLayoutGroup>();
+		verticalLayout.childAlignment = TextAnchor.MiddleCenter;
+		verticalLayout.padding = new RectOffset(10, 10, 8, 8);
+		verticalLayout.childControlWidth = true;
+		verticalLayout.childControlHeight = true;
+		
+		var tooltipFitter = _trainTooltipGo.AddComponent<ContentSizeFitter>();
+		tooltipFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+		tooltipFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+		_trainTooltipGo.SetActive(false);
+	}
+
+	private void ShowTrainTooltip(TrainInfo info)
+	{
+		if (_trainTooltipGo == null)
+		{
+			CreateTrainTooltip();
+		}
+
+		if (_trainTooltipText != null)
+		{
+			string FormatLabelValue(string label, string value, bool newline = true)
+			{
+				if (string.IsNullOrEmpty(value)) return "";
+				// Plain, unformatted label:value
+				return (newline ? "\n" : "") + $"{label}: {value}";
+			}
+
+			var sb = new System.Text.StringBuilder();
+			// First line: Train name (no leading newline), plain text
+			sb.Append($"Train: {info.TrainName}");
+
+			if (Settings.ShowTrainDriver)
+			{
+				sb.Append(FormatLabelValue("Driver", info.DriverName));
+				if (!string.IsNullOrEmpty(info.DriveMode))
+					sb.Append(FormatLabelValue("Mode", info.DriveMode));
+			}
+
+			if (Settings.ShowTrainStats)
+			{
+				sb.Append(FormatLabelValue("Speed", $"{info.SpeedMph:F0} mph"));
+				sb.Append(FormatLabelValue("Length", $"{info.LengthFt:F0} ft"));
+				sb.Append(FormatLabelValue("Weight", $"{info.WeightTons:F0} T"));
+				sb.Append(FormatLabelValue("Cars", info.CarCount.ToString()));
+				if (info.PassengerCapacity > 0)
+				{
+					sb.Append(FormatLabelValue("Passengers", $"{info.PassengerCount}/{info.PassengerCapacity}"));
+				}
+				else if (info.PassengerCount > 0)
+				{
+					sb.Append(FormatLabelValue("Passengers", info.PassengerCount.ToString()));
+				}
+			}
+
+			_trainTooltipText.text = sb.ToString();
+		}
+
+		if (_trainTooltipGo != null && !_trainTooltipGo.activeSelf)
+		{
+			_trainTooltipGo.SetActive(true);
+		}
+	}
+
+	private void HideTrainTooltip()
+	{
+		if (_trainTooltipGo != null && _trainTooltipGo.activeSelf)
+		{
+			_trainTooltipGo.SetActive(false);
+		}
 	}
 
 	private GameObject? _gradeLegendGo;
@@ -608,6 +718,335 @@ public class MapEnhancer : MonoBehaviour
 		_gradeMarkers.Clear();
 	}
 
+	private IEnumerator UpdateTrainInfoCoroutine()
+	{
+		while (true)
+		{
+			try
+			{
+				RefreshTrainInfoCache();
+			}
+			catch (Exception ex)
+			{
+				Loader.Log($"Error updating train info: {ex}");
+			}
+			yield return new WaitForSeconds(1f);
+		}
+	}
+
+	private void RefreshTrainInfoCache()
+	{
+		_trainInfoCache.Clear();
+		var processedTrainsets = new HashSet<object>();
+
+		foreach (var car in TrainController.Shared.Cars)
+		{
+			if (car == null) continue;
+			if (!car.Archetype.IsLocomotive()) continue;
+
+			var trainset = car.set;
+			if (trainset != null)
+			{
+				if (!processedTrainsets.Add(trainset))
+				{
+					continue;
+				}
+			}
+
+			List<Car> allCars = GetConsistCars(car);
+			if (allCars.Count == 0) continue;
+
+			var info = new TrainInfo();
+			info.LeadLoco = car;
+			info.TrainName = car.DisplayName ?? car.Ident.RoadNumber ?? car.id ?? "Unknown";
+
+			info.SpeedMph = car.VelocityMphAbs;
+
+			info.LengthFt = allCars.Sum(c => c.carLength);
+			info.WeightTons = allCars.Sum(c => c.Weight) / 2000f;
+			info.CarCount = allCars.Count(c => !c.Archetype.IsLocomotive());
+			int paxCurrent = 0;
+			int paxCapacity = 0;
+			TryGetPassengerCounts(allCars, out paxCurrent, out paxCapacity);
+			info.PassengerCount = paxCurrent;
+			info.PassengerCapacity = paxCapacity;
+			info.DriverName = GetDriverName(car);
+			info.DriveMode = GetDriveMode(car);
+			// DriveType removed: not shown in tooltip
+
+			foreach (var c in allCars)
+			{
+				if (c != null && c.id != null)
+				{
+					_trainInfoCache[c.id] = info;
+				}
+			}
+		}
+
+		// Waypoint marker feature removed; no per-selected-loco marker update
+	}
+
+	private List<Car> GetConsistCars(Car loco)
+	{
+		var result = new List<Car>();
+		var trainset = loco.set;
+		if (trainset != null && trainset.Cars != null)
+		{
+			foreach (var car in trainset.Cars)
+			{
+				if (car != null)
+				{
+					result.Add(car);
+				}
+			}
+		}
+		else
+		{
+			result.Add(loco);
+		}
+		return result;
+	}
+
+	private int TryGetPassengerCount(List<Car> cars)
+	{
+		int total = 0;
+		foreach (var car in cars)
+		{
+			if (car == null) continue;
+			try
+			{
+				if (car.IsPassengerCar())
+				{
+					var pm = car.GetPassengerMarker();
+					if (pm.HasValue)
+					{
+						total += pm.Value.TotalPassengers;
+					}
+				}
+			}
+			catch
+			{
+				// Graceful ignore
+			}
+		}
+		return total;
+	}
+
+	private void TryGetPassengerCounts(List<Car> cars, out int current, out int capacity)
+	{
+		current = 0;
+		capacity = 0;
+		foreach (var car in cars)
+		{
+			if (car == null) continue;
+			try
+			{
+				if (car.IsPassengerCar())
+				{
+					var pm = car.GetPassengerMarker();
+					if (pm.HasValue)
+					{
+						current += pm.Value.TotalPassengers;
+						// Try to extract capacity from Car.PassengerCountString if available (format: "cur/total")
+						try
+						{
+							string countStr = car.PassengerCountString(pm.Value);
+							if (!string.IsNullOrEmpty(countStr))
+							{
+								var parts = countStr.Split('/');
+								if (parts.Length >= 2)
+								{
+									var m = Regex.Match(parts[1], "(\\d+)");
+									if (m.Success)
+									{
+										capacity += int.Parse(m.Groups[1].Value);
+									}
+								}
+							}
+						}
+						catch { }
+					}
+				}
+			}
+			catch { }
+		}
+		// If we couldn't determine capacity but have current pax, set capacity = current to avoid showing 0/0
+		if (capacity == 0 && current > 0) capacity = current;
+	}
+
+
+	private string GetDriverName(Car loco)
+	{
+		try
+		{
+			var pm = StateManager.Shared?._playersManager;
+			string? preferredName = null;
+			// If the loco is the selected car/locomotive, prefer the local player's name
+			if (TrainController.Shared != null && (TrainController.Shared.SelectedCar == loco || TrainController.Shared.SelectedLocomotive == loco))
+			{
+				if (pm != null)
+				{
+					var localPlayer = pm.LocalPlayer;
+					if (!string.IsNullOrEmpty(localPlayer.Name))
+						return localPlayer.Name;
+					preferredName = !string.IsNullOrEmpty(localPlayer.Name) ? localPlayer.Name : null;
+				}
+			}
+
+			if (pm != null)
+			{
+				// Try to find a player who is occupying this loco (preferred) or within proximity (fallback)
+				if (pm.AllPlayers != null)
+				{
+					foreach (var player in pm.AllPlayers)
+					{
+						if (player == null) continue;
+						try
+						{
+							// Some player types expose an OccupiedCar or OccupiedVehicle property
+							var occupied = player.GetType().GetProperty("OccupiedCar", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(player)
+								?? player.GetType().GetProperty("occupiedCar", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(player);
+							if (occupied is Car oc && oc == loco)
+								return player.Name ?? preferredName ?? "Player";
+						}
+						catch { }
+
+						// Fallback: proximity check (existing behaviour)
+						try
+						{
+							Vector3 playerPosGame = player.GamePosition;
+							Vector3 locoPosGame = WorldTransformer.WorldToGame(loco.transform.position);
+							if (Vector3.Distance(playerPosGame, locoPosGame) < 20f)
+							{
+								return player.Name ?? preferredName ?? "Player";
+							}
+						}
+						catch { }
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			Loader.LogDebug($"Error getting driver name: {ex}");
+		}
+		return "AI";
+	}
+
+	private string GetDriveMode(Car loco)
+	{
+		if (loco is BaseLocomotive bl)
+		{
+			try
+			{
+				// Prefer reading the AutoEngineerPlanner orders when available (most reliable)
+				try
+				{
+					var planner = bl.GetComponent<Model.AI.AutoEngineerPlanner>();
+					if (planner != null)
+					{
+						// Try property 'Orders' then field '_orders'
+						var ordProp = planner.GetType().GetProperty("Orders", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+						var ordField = planner.GetType().GetField("_orders", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+						var ordersObj = ordProp != null ? ordProp.GetValue(planner) : ordField != null ? ordField.GetValue(planner) : null;
+						if (ordersObj != null)
+						{
+							var modeProp = ordersObj.GetType().GetProperty("Mode", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+							var modeField = ordersObj.GetType().GetField("Mode", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+											?? ordersObj.GetType().GetField("mode", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+							var modeVal = modeProp != null ? modeProp.GetValue(ordersObj) : modeField != null ? modeField.GetValue(ordersObj) : null;
+							if (modeVal != null)
+							{
+								return MapDriveMode(modeVal.ToString() ?? "");
+							}
+						}
+					}
+				}
+				catch { }
+				// Try several likely field/property names to be resilient across game versions
+				string? raw = null;
+				var t = bl.GetType();
+				var candidates = new[] { "autoEngineerMode", "AutoEngineerMode", "driveMode", "DriveMode", "mode", "Mode" };
+				foreach (var name in candidates)
+				{
+					var f = t.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+					if (f != null)
+					{
+						raw = f.GetValue(bl)?.ToString();
+						break;
+					}
+					var p = t.GetProperty(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+					if (p != null)
+					{
+						raw = p.GetValue(bl)?.ToString();
+						break;
+					}
+				}
+
+				// Try nested autoEngineer object
+				if (string.IsNullOrEmpty(raw))
+				{
+					var aeField = t.GetField("autoEngineer", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+						?? t.GetField("AutoEngineer", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+					if (aeField != null)
+					{
+						var ae = aeField.GetValue(bl);
+						if (ae != null)
+						{
+							var aeType = ae.GetType();
+							var nestedCandidates = new[] { "mode", "Mode", "currentMode" };
+							foreach (var n in nestedCandidates)
+							{
+								var nf = aeType.GetField(n, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+								if (nf != null)
+								{
+									raw = nf.GetValue(ae)?.ToString();
+									break;
+								}
+								var np = aeType.GetProperty(n, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+								if (np != null)
+								{
+									raw = np.GetValue(ae)?.ToString();
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				if (!string.IsNullOrEmpty(raw))
+					return MapDriveMode(raw ?? "");
+			}
+			catch (Exception ex)
+			{
+				Loader.LogDebug($"Error getting drive mode: {ex}");
+			}
+		}
+		return "Manual";
+	}
+
+	// DriveType removed per user request.
+
+	private string MapDriveMode(string rawMode)
+	{
+		if (string.IsNullOrEmpty(rawMode)) return "Manual";
+		if (rawMode.Equals("Road", StringComparison.OrdinalIgnoreCase)) return "AE Road";
+		if (rawMode.Equals("Yard", StringComparison.OrdinalIgnoreCase)) return "AE Yard";
+		if (rawMode.Equals("Off", StringComparison.OrdinalIgnoreCase) || rawMode.Equals("None", StringComparison.OrdinalIgnoreCase)) return "Manual";
+		return rawMode;
+	}
+
+	private static void AttachTrainMarkerData(Car car, MapIcon marker)
+	{
+		if (marker == null || car == null) return;
+		var tmd = marker.gameObject.GetComponent<TrainMarkerData>();
+		if (tmd == null)
+		{
+			tmd = marker.gameObject.AddComponent<TrainMarkerData>();
+		}
+		tmd.Car = car;
+	}
+
 	// TODO: Remove this entire method when cleaning up non-visual-only mode code
 	private static void ReclassifyAllTrackSegments()
 	{
@@ -782,6 +1221,7 @@ public class MapEnhancer : MonoBehaviour
 
 		GatherTraincarMarkers();
 		traincarColorUpdater = StartCoroutine(TraincarColorUpdater());
+		_trainInfoUpdater = StartCoroutine(UpdateTrainInfoCoroutine());
 
 		GatherFlareMarkers();
 		InitializeTurntableSyncStorage();
@@ -857,6 +1297,8 @@ public class MapEnhancer : MonoBehaviour
 		junctionMarkers.Clear();
 
 		if (traincarColorUpdater != null) StopCoroutine(traincarColorUpdater);
+		if (_trainInfoUpdater != null) StopCoroutine(_trainInfoUpdater);
+		_trainInfoCache.Clear();
 
 		MapWindow.instance._window.OnShownDidChange -= OnMapWindowShown;
 
@@ -872,6 +1314,11 @@ public class MapEnhancer : MonoBehaviour
 		_gradeTooltipGo = null;
 		_gradeTooltipText = null;
 		_gradeTooltipRect = null;
+
+		if (_trainTooltipGo != null) Destroy(_trainTooltipGo);
+		_trainTooltipGo = null;
+		_trainTooltipText = null;
+		_trainTooltipRect = null;
 
 		if (_gradeLegendGo != null) Destroy(_gradeLegendGo);
 		_gradeLegendGo = null;
@@ -916,6 +1363,10 @@ public class MapEnhancer : MonoBehaviour
 			if (_gradeTooltipGo != null)
 			{
 				_gradeTooltipGo.SetActive(false);
+			}
+			if (_trainTooltipGo != null)
+			{
+				_trainTooltipGo.SetActive(false);
 			}
 		}
 	}
@@ -2181,6 +2632,12 @@ public class MapEnhancer : MonoBehaviour
 				if (!marker)
 					AddTraincarMarker(car);
 			}
+
+			var actualMarker = car.GetComponentInChildren<MapIcon>(true);
+			if (actualMarker != null)
+			{
+				AttachTrainMarkerData(car, actualMarker);
+			}
 		}
 	}
 
@@ -2228,6 +2685,7 @@ public class MapEnhancer : MonoBehaviour
 			CarInspector.Show(car);
 		};
 		car.UpdateMapIconPosition(car._mover.Position, car._mover.Rotation);
+		AttachTrainMarkerData(car, car.MapIcon);
 	}
 
 	private void GatherFlareMarkers()
@@ -2553,6 +3011,10 @@ public class MapEnhancer : MonoBehaviour
 			{
 				_gradeTooltipGo.SetActive(false);
 			}
+			if (_trainTooltipGo != null && _trainTooltipGo.activeSelf)
+			{
+				_trainTooltipGo.SetActive(false);
+			}
 			return;
 		}
 
@@ -2653,6 +3115,33 @@ public class MapEnhancer : MonoBehaviour
 			{
 				_gradeTooltipGo.SetActive(false);
 			}
+		}
+
+		if (Settings.ShowTrainHoverDetails)
+		{
+			Vector2 viewportNormalizedPoint = mapDrag.NormalizedMousePosition();
+			Ray ray = mapWindow.RayForViewportNormalizedPoint(viewportNormalizedPoint);
+
+			if (Physics.Raycast(ray, out RaycastHit hit, 10000f))
+			{
+				var tmd = hit.collider.GetComponentInParent<TrainMarkerData>();
+				if (tmd != null && tmd.Car != null && _trainInfoCache.TryGetValue(tmd.Car.id, out var info))
+				{
+					ShowTrainTooltip(info);
+				}
+				else
+				{
+					HideTrainTooltip();
+				}
+			}
+			else
+			{
+				HideTrainTooltip();
+			}
+		}
+		else
+		{
+			HideTrainTooltip();
 		}
 
 		if (GameInput.shared.PlaceFlare)
@@ -3147,6 +3636,7 @@ public class MapEnhancer : MonoBehaviour
 		private static void Postfix(Car __instance)
 		{
 			var marker = __instance.GetComponentInChildren<MapIcon>();
+			if (marker == null) return;
 			void OnClick()
 			{
 				if (Instance == null)
@@ -3164,6 +3654,7 @@ public class MapEnhancer : MonoBehaviour
 				CarInspector.Show(__instance);
 			}
 			marker.OnClick = OnClick;
+			AttachTrainMarkerData(__instance, marker);
 		}
 	}
 
@@ -3342,6 +3833,31 @@ public class MapEnhancer : MonoBehaviour
 		public Vector3 MarkerPosition;
 		public float TotalLength;
 	}
+
+	private class TrainInfo
+	{
+		public Car LeadLoco = null!;
+		public string TrainName = "";
+		public string DriveMode = "";
+
+		public string DriverName = "";
+		public float SpeedMph;
+		public float LengthFt;
+		public float WeightTons;
+		public int CarCount;
+		public int PassengerCount;
+		public int PassengerCapacity;
+		public string Destination = "";
+	}
+
+	private class TrainMarkerData : MonoBehaviour
+	{
+		public Car? Car;
+	}
+ 
+
+	// Waypoint marker feature removed per user request
+
 }
 
 // Data classes for spawn-points.json file format
