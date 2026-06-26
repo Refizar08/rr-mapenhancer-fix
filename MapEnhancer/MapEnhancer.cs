@@ -664,7 +664,18 @@ public class MapEnhancer : MonoBehaviour
 		{
 			var sb = new System.Text.StringBuilder();
 
-			const string headerColor = "#9CDCFE";
+				const string headerColor = "#9CDCFE";
+
+			// -----------------------------
+			// Car Name
+			// -----------------------------
+
+			sb.Append($"<b><color={headerColor}>{fci.CarTypeName}</color></b>");
+
+			if (!string.IsNullOrWhiteSpace(fci.CarNumber))
+			{
+				sb.Append($"\n{fci.CarNumber}");
+			}
 
 			// -----------------------------
 			// Status
@@ -681,7 +692,7 @@ public class MapEnhancer : MonoBehaviour
 				_           => "#FFFFFF"
 			};
 
-			sb.Append($"<color={headerColor}>Status</color>\n");
+			sb.Append($"\n\n<color={headerColor}>Status</color>\n");
 			sb.Append($"<color={statusColor}>{status}</color>");
 
 			// -----------------------------
@@ -738,6 +749,14 @@ public class MapEnhancer : MonoBehaviour
 				sb.Append("<color=#9E9E9E>Unknown</color>");
 
 			// -----------------------------
+			// Health
+			// -----------------------------
+			sb.Append($"\n\n<color={headerColor}>Health</color>\n");
+			string oilText = fci.JournalOilPercent >= 0 ? $"{fci.JournalOilPercent}%" : "Unknown";
+			sb.Append($"Journal Oil    {oilText}\n");
+			// sb.Append($"Hand Brake     {(fci.HandBrakeApplied ? "Applied" : "Released")}");
+
+			// -----------------------------
 			// Alerts
 			// -----------------------------
 			var alerts = new List<string>();
@@ -745,6 +764,21 @@ public class MapEnhancer : MonoBehaviour
 			if (fci.HasHotbox)
 			{
 				alerts.Add("<color=#EF5350>• Hotbox Detected</color>");
+			}
+			else if (fci.JournalOilPercent >= 0)
+			{
+				if (fci.JournalOilPercent < 10)
+				{
+					alerts.Add($"<color=#EF5350>• Hotbox Risk ({fci.JournalOilPercent}% oil)</color>");
+				}
+				else if (fci.JournalOilPercent < 25)
+				{
+					alerts.Add($"<color=#FF9800>• Critical Journal Oil ({fci.JournalOilPercent}%)</color>");
+				}
+				else if (fci.JournalOilPercent < 50)
+				{
+					alerts.Add($"<color=#FFD54F>• Low Journal Oil ({fci.JournalOilPercent}%)</color>");
+				}
 			}
 
 			if (fci.HandBrakeApplied)
@@ -1643,6 +1677,7 @@ public class MapEnhancer : MonoBehaviour
 			var fci = new FreightCarInfo();
 			fci.Car = car;
 			fci.CarTypeName = GetCarTypeName(car);
+			fci.CarNumber = car.DisplayName ?? $"{car.Ident.ReportingMark} {car.Ident.RoadNumber}";
 
 			// --- Destination + Status via OpsController ---
 			try
@@ -1727,9 +1762,19 @@ public class MapEnhancer : MonoBehaviour
 			// --- Hotbox ---
 			try
 			{
-				fci.HasHotbox = TryGetHotbox(car);
+				fci.HasHotbox = car.HasHotbox;
 			}
 			catch { }
+
+			// --- Journal Oil ---
+			try
+			{
+				fci.JournalOilPercent = car.EnableOiling ? Mathf.RoundToInt(car.Oiled * 100f) : -1;
+			}
+			catch
+			{
+				fci.JournalOilPercent = -1;
+			}
 
 			// --- Loaded / empty classification ---
 			bool isLoaded = fci.LoadWeightTons > 0.01f || fci.Status == "Pending";
@@ -3961,9 +4006,99 @@ public class MapEnhancer : MonoBehaviour
 					arrow = " ▼";
 				}
 
+				// if (_gradeTooltipText != null)
+				// {
+				// 	_gradeTooltipText.text = $"{lineType}\nGrade: {sign}{Mathf.Abs(grade):F1}%{arrow}";
+				// }
+
 				if (_gradeTooltipText != null)
 				{
-					_gradeTooltipText.text = $"{lineType}\nGrade: {sign}{Mathf.Abs(grade):F1}%{arrow}";
+					const string headerColor = "#9CDCFE";
+
+					// Grade color based on absolute value
+					float absGrade = Mathf.Abs(grade);
+					string gradeColor;
+
+					if (absGrade < 0.1f)
+						gradeColor = "#66BB6A";      // Flat - Green
+					else if (absGrade < 1.0f)
+						gradeColor = "#8BC34A";      // Easy
+					else if (absGrade < 2.0f)
+						gradeColor = "#FFD54F";      // Moderate
+					else if (absGrade < 3.0f)
+						gradeColor = "#FF9800";      // Steep
+					else
+						gradeColor = "#EF5350";      // Very Steep
+
+					// Color the track type using the actual track colors from settings
+					Color trackColor = Color.white;
+					if (Settings != null)
+					{
+						// Default to branch
+						trackColor = Settings.TrackColorBranch;
+						
+						if (_mainlineSegments.Contains(closestSegment.id))
+						{
+							trackColor = Settings.TrackColorMainline;
+						}
+						
+						if (_industrialSegments.Contains(closestSegment.id)
+							&& !_mainlineSegments.Contains(closestSegment.id)
+							&& !_passengerStopSegments.Contains(closestSegment.id))
+						{
+							if (Settings.EnableIndustryAreaColors && _industrialSegmentColors.TryGetValue(closestSegment.id, out Color segmentColor))
+							{
+								trackColor = segmentColor;
+							}
+							else
+							{
+								trackColor = Settings.TrackColorIndustrial;
+							}
+						}
+						
+						if (Settings.EnablePassengerStopTracking && _passengerStopSegments.Contains(closestSegment.id))
+						{
+							trackColor = Settings.TrackColorPax;
+						}
+					}
+					else
+					{
+						trackColor = new Color(0.74f, 0.74f, 0.74f); // Default branch
+						if (_mainlineSegments.Contains(closestSegment.id))
+						{
+							trackColor = new Color(0.31f, 0.76f, 0.97f);
+						}
+						if (_industrialSegments.Contains(closestSegment.id)
+							&& !_mainlineSegments.Contains(closestSegment.id)
+							&& !_passengerStopSegments.Contains(closestSegment.id))
+						{
+							if (_industrialSegmentColors.TryGetValue(closestSegment.id, out Color segmentColor))
+							{
+								trackColor = segmentColor;
+							}
+							else
+							{
+								trackColor = new Color(0.51f, 0.78f, 0.52f);
+							}
+						}
+						if (_passengerStopSegments.Contains(closestSegment.id))
+						{
+							trackColor = new Color(0.73f, 0.41f, 0.78f);
+						}
+					}
+					string lineColor = $"#{ColorUtility.ToHtmlStringRGB(trackColor)}";
+
+					// _gradeTooltipText.richText = true;
+					// _gradeTooltipText.text =
+					// 	$"<color={headerColor}>Track</color>\n" +
+					// 	$"<color={lineColor}>{lineType}</color>\n\n" +
+					// 	$"<color={headerColor}>Grade</color>\n" +
+					// 	$"<color={gradeColor}>{sign}{Mathf.Abs(grade):F1}%{arrow}</color>";
+
+					_gradeTooltipText.richText = true;
+					_gradeTooltipText.text =
+						$"<b><color={lineColor}>{lineType}</color></b> • " +
+						$"<color={gradeColor}>{sign}{Mathf.Abs(grade):F1}%{arrow}</color>";
 				}
 
 				if (_gradeTooltipGo != null)
@@ -3990,7 +4125,7 @@ public class MapEnhancer : MonoBehaviour
 			}
 		}
 
-		if (Settings.ShowTrainHoverDetails)
+		if (Settings!.ShowTrainHoverDetails)
 		{
 			Vector2 viewportNormalizedPoint = mapDrag.NormalizedMousePosition();
 			Ray ray = mapWindow.RayForViewportNormalizedPoint(viewportNormalizedPoint);
@@ -4000,7 +4135,7 @@ public class MapEnhancer : MonoBehaviour
 				var tmd = hit.collider.GetComponentInParent<TrainMarkerData>();
 				if (tmd != null && tmd.Car != null && _trainInfoCache.TryGetValue(tmd.Car.id, out var info))
 				{
-					if (tmd.Car.Archetype.IsLocomotive() || !Settings.ShowIndividualCarTooltip)
+					if (tmd.Car.Archetype.IsLocomotive() || !Settings!.ShowIndividualCarTooltip)
 					{
 						ShowTrainTooltip(info);
 					}
@@ -4776,6 +4911,7 @@ public class MapEnhancer : MonoBehaviour
 		public string DestinationName = "";
 		/// <summary>Car type label (e.g. "Boxcar").</summary>
 		public string CarTypeName = "";
+		public string CarNumber = "";
 		/// <summary>Total cargo weight in tons.</summary>
 		public float LoadWeightTons;
 		/// <summary>Maximum cargo capacity in tons (0 if unknown).</summary>
@@ -4784,6 +4920,7 @@ public class MapEnhancer : MonoBehaviour
 		public string Status = "Unknown";
 		public bool HandBrakeApplied;
 		public bool HasHotbox;
+		public int JournalOilPercent;
 	}
 
 

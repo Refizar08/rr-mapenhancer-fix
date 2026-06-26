@@ -1,6 +1,6 @@
 # Map Enhancer - Community Fix Edition
 
-[![Version](https://img.shields.io/badge/version-1.5.4.5-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
+[![Version](https://img.shields.io/badge/version-1.5.5-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
 [![Game](https://img.shields.io/badge/Railroader-2025-green.svg)](https://store.steampowered.com/app/1683150/Railroader/)
 
 > **Note:** This is a maintained fork by me with fixes and improvements for Map Enhancer. I had pull from the main repository but provide working updates and bug fixes until Vanguard officially updates the original mod.
@@ -20,6 +20,16 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 ## ✨ Features
 
 ### 🆕 Community Fork Exclusive Features
+
+#### **Train & Cargo Intelligence Layer** (v1.5.5)
+- 🧠 Added: Live train details on hover (driver, speed, weight, cars, consist length)
+- 🔌 Added: Locomotive fuel level details showing diesel, water, and coal percentages
+- 📦 Added: Dynamic consist cargo summary (cargo types and weights) and destinations aggregated directly in the main train tooltip
+- 🚃 Added: Individual freight car tooltips on hover (car identifier, type, cargo load, and destination)
+- 🏥 Added: Journal oil health percentage and hand brake status
+- ⚠️ Added: Predictive Alerts system for hotbox prevention (Hotbox Detected, Hotbox Risk <10%, Critical Oil <25%, Low Oil <50%, and Hand Brake Applied)
+- 🎨 Added: Dynamic track colors inside the grade hover tooltip, matching settings-defined colors
+- 🐛 Fixed: Caching issues for engine-less consists on sidings so loose cars display hover details correctly
 
 #### **Grade Indicators** (v1.5.4.5)
 - 📏 Added: Hover grade details for track segments, including grade percentage and uphill/downhill direction
@@ -205,6 +215,9 @@ Video: https://youtu.be/zMtQZzuPjXE
 
 This fork includes **ALL original Map Enhancer features** plus community improvements:
 
+- 🧠 **Train & Cargo Intelligence** - Aggregated consist stats, fuel tracker, and freight/destination summary (v1.5.5)
+- 🚃 **Individual Car Tooltips** - Car identifiers, waybill delivery status, cargo loads, journal oil health tracker and predictive alerts (v1.5.5)
+- 🎨 **Dynamic tooltip track colors** - Matches segment/industry colors inside hover grade tooltip (v1.5.5)
 - 📏 **Grade indicators** - Hover details, map markers, and overlay coloring for track grades (v1.5.4.5)
 - 🚂 **Turntable clearance toggle** - Optionally bypass fouling checks when manual rotation should still work (v1.5.4.4)
 - 🗺️ **Modded spawn points support** - Load custom teleport locations from mods (v1.5.4.2)
@@ -267,6 +280,15 @@ Customize colors for all track types with RGBA sliders:
 - ☐ **Enable Passenger Stop Tracking** (default: OFF)
 - ☑️ **Enable Industry Area Colors** (default: ON)
 
+### Train & Cargo Intelligence Settings
+- ☑️ **Show Train Hover Details**: Toggle showing the detailed info panel on hover (default: ON)
+  - ☑️ **Show Driver Name** (default: ON)
+  - ☑️ **Show Train Stats**: speed, weight, cars, length (default: ON)
+  - ☑️ **Show Locomotive Fuel Levels** (default: ON)
+  - ☑️ **Show Cargo Summary**: cargo weight and types (default: ON)
+  - ☑️ **Show Destination Summary**: target destinations (default: ON)
+  - ☑️ **Show Individual Freight Car Tooltip on Hover** (default: ON)
+
 ## 🐛 Known Issues
 
 - I don't know!
@@ -287,6 +309,25 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 
 ## 📜 Version History
 
+
+### v1.5.5 (2026-06-27)
+
+- 🧠 Added: **Train & Cargo Intelligence Layer**
+  - Live train info panel on hover with driver name, speed, total tonnage, car count, and consist length.
+  - Aggregated fuel levels (diesel/water/coal percentage) for locomotives in consist.
+  - Consolidated consist cargo list (cargo types and weights) and destinations.
+- 🚃 Added: **Individual Freight Car Tooltips**
+  - Hovering a freight car marker shows car identification, type, waybill status, cargo, and capacity details.
+  - Detailed journal oil level tracking (using `Oiled` API) and hand brake status.
+  - Prioritized alerts list for predictive maintenance:
+    - 🛑 **Hotbox Detected** (active hotbox failure)
+    - ⚠️ **Hotbox Risk** (under 10% oil)
+    - ⚠️ **Critical Journal Oil** (under 25% oil)
+    - ⚠️ **Low Journal Oil** (under 50% oil)
+    - ⚠️ **Hand Brake Applied**
+- 🎨 Improved: **Dynamic Grade Tooltip Styling**
+  - The grade hover tooltip now displays track type and name styled in the actual color assigned to that track type/industry area.
+- 🐛 Fixed: Loose car caching so details for uncoupled cars on sidings update and display correctly.
 
 ### v1.5.4.5 (2026-05-24)
 
