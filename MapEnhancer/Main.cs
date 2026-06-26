@@ -152,6 +152,12 @@ public static class Loader
 	public bool ShowTrainDriver       = true;
 	public bool ShowTrainStats        = true;
 
+	// Cargo Intelligence Layer
+	public bool ShowFuel                 = true;
+	public bool ShowTrainCargoSummary    = true;
+	public bool ShowDestinations         = true;
+	public bool ShowIndividualCarTooltip = true;
+
 	// Tooltip customization removed: tooltips use plain formatting
 
 	public override void Save(UnityModManager.ModEntry modEntry)
@@ -573,7 +579,46 @@ public static class Loader
 					changed = true;
 				}
 			}
-			
+			using (new GUILayout.HorizontalScope())
+			{
+				GUILayout.Space(20);
+				var showFuel = GUILayout.Toggle(Settings.ShowFuel, "Show Locomotive Fuel Levels");
+				if (Settings.ShowFuel != showFuel)
+				{
+					Settings.ShowFuel = showFuel;
+					changed = true;
+				}
+			}
+			using (new GUILayout.HorizontalScope())
+			{
+				GUILayout.Space(20);
+				var showCargo = GUILayout.Toggle(Settings.ShowTrainCargoSummary, "Show Cargo Summary (freight trains)");
+				if (Settings.ShowTrainCargoSummary != showCargo)
+				{
+					Settings.ShowTrainCargoSummary = showCargo;
+					changed = true;
+				}
+			}
+			using (new GUILayout.HorizontalScope())
+			{
+				GUILayout.Space(20);
+				var showDest = GUILayout.Toggle(Settings.ShowDestinations, "Show Destination Summary (freight trains)");
+				if (Settings.ShowDestinations != showDest)
+				{
+					Settings.ShowDestinations = showDest;
+					changed = true;
+				}
+			}
+			using (new GUILayout.HorizontalScope())
+			{
+				GUILayout.Space(20);
+				var showCarTooltip = GUILayout.Toggle(Settings.ShowIndividualCarTooltip, "Show Individual Freight Car Tooltip on Hover");
+				if (Settings.ShowIndividualCarTooltip != showCarTooltip)
+				{
+					Settings.ShowIndividualCarTooltip = showCarTooltip;
+					changed = true;
+				}
+			}
 		}
 		
 		// Reset to Defaults button
@@ -646,6 +691,12 @@ public static class Loader
 			Settings.ShowTrainHoverDetails = true;
 			Settings.ShowTrainDriver       = true;
 			Settings.ShowTrainStats        = true;
+
+			// Reset cargo intelligence settings
+			Settings.ShowFuel                 = true;
+			Settings.ShowTrainCargoSummary    = true;
+			Settings.ShowDestinations         = true;
+			Settings.ShowIndividualCarTooltip = true;
 			
 			Log("All settings have been reset to their default values.");
 		}

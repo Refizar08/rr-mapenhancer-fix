@@ -347,6 +347,100 @@ public class MapEnhancer : MonoBehaviour
 		_trainTooltipGo.SetActive(false);
 	}
 
+	// private void ShowTrainTooltip(TrainInfo info)
+	// {
+	// 	if (_trainTooltipGo == null)
+	// 	{
+	// 		CreateTrainTooltip();
+	// 	}
+
+	// 	if (_trainTooltipText != null)
+	// 	{
+	// 		string FormatLabelValue(string label, string value, bool newline = true)
+	// 		{
+	// 			if (string.IsNullOrEmpty(value)) return "";
+	// 			return (newline ? "\n" : "") + $"{label}: {value}";
+	// 		}
+
+	// 		var sb = new System.Text.StringBuilder();
+	// 		// First line: Train name (no leading newline)
+	// 		sb.Append($"Train: {info.TrainName}");
+
+	// 		if (Settings.ShowTrainDriver)
+	// 		{
+	// 			sb.Append(FormatLabelValue("Driver", info.DriverName));
+	// 			if (!string.IsNullOrEmpty(info.DriveMode))
+	// 				sb.Append(FormatLabelValue("Mode", info.DriveMode));
+	// 		}
+
+	// 		// --- Fuel ---
+	// 		if (Settings.ShowFuel && info.Fuel != null)
+	// 		{
+	// 			if (info.Fuel.IsSteam)
+	// 			{
+	// 				var fuelParts = new System.Text.StringBuilder();
+	// 				if (info.Fuel.CoalPercent >= 0f)
+	// 					fuelParts.Append($"Coal {info.Fuel.CoalPercent:F0}%");
+	// 				if (info.Fuel.WaterPercent >= 0f)
+	// 				{
+	// 					if (fuelParts.Length > 0) fuelParts.Append(" | ");
+	// 					fuelParts.Append($"Water {info.Fuel.WaterPercent:F0}%");
+	// 				}
+	// 				if (fuelParts.Length > 0)
+	// 					sb.Append(FormatLabelValue("Fuel", fuelParts.ToString()));
+	// 			}
+	// 			else
+	// 			{
+	// 				if (info.Fuel.DieselPercent >= 0f)
+	// 					sb.Append(FormatLabelValue("Fuel", $"Diesel {info.Fuel.DieselPercent:F0}%"));
+	// 			}
+	// 		}
+
+	// 		if (Settings.ShowTrainStats)
+	// 		{
+	// 			sb.Append(FormatLabelValue("Speed", $"{info.SpeedMph:F0} mph"));
+	// 			sb.Append(FormatLabelValue("Length", $"{info.LengthFt:F0} ft"));
+	// 			sb.Append(FormatLabelValue("Weight", $"{info.WeightTons:F0} T"));
+	// 			sb.Append(FormatLabelValue("Cars", info.CarCount.ToString()));
+	// 			if (info.PassengerCapacity > 0)
+	// 			{
+	// 				sb.Append(FormatLabelValue("Passengers", $"{info.PassengerCount}/{info.PassengerCapacity}"));
+	// 			}
+	// 			else if (info.PassengerCount > 0)
+	// 			{
+	// 				sb.Append(FormatLabelValue("Passengers", info.PassengerCount.ToString()));
+	// 			}
+	// 		}
+
+	// 		// --- Consist Summary ---
+	// 		if (Settings.ShowTrainCargoSummary && info.HasFreightCars && info.CargoSummary.Count > 0)
+	// 		{
+	// 			sb.Append("\n\nConsist");
+	// 			foreach (var group in info.CargoSummary)
+	// 			{
+	// 				sb.Append($"\n{group.Count}x {group.Label}");
+	// 			}
+	// 		}
+
+	// 		// --- Destination Summary ---
+	// 		if (Settings.ShowDestinations && info.HasFreightCars && info.DestinationSummary.Count > 0)
+	// 		{
+	// 			sb.Append("\n\nDestinations");
+	// 			foreach (var dest in info.DestinationSummary)
+	// 			{
+	// 				sb.Append($"\n{dest}");
+	// 			}
+	// 		}
+
+	// 		_trainTooltipText.text = sb.ToString();
+	// 	}
+
+	// 	if (_trainTooltipGo != null && !_trainTooltipGo.activeSelf)
+	// 	{
+	// 		_trainTooltipGo.SetActive(true);
+	// 	}
+	// }
+
 	private void ShowTrainTooltip(TrainInfo info)
 	{
 		if (_trainTooltipGo == null)
@@ -356,40 +450,145 @@ public class MapEnhancer : MonoBehaviour
 
 		if (_trainTooltipText != null)
 		{
-			string FormatLabelValue(string label, string value, bool newline = true)
+			var sb = new System.Text.StringBuilder();
+
+			const string HeaderColor = "#9CDCFE";
+			const string Grey = "#BDBDBD";
+			const string Green = "#66BB6A";
+			const string Yellow = "#FFD54F";
+			const string Red = "#EF5350";
+
+			string Header(string text) => $"<color={HeaderColor}>{text}</color>";
+
+			string FuelColor(float pct)
 			{
-				if (string.IsNullOrEmpty(value)) return "";
-				// Plain, unformatted label:value
-				return (newline ? "\n" : "") + $"{label}: {value}";
+				if (pct >= 60f) return Green;
+				if (pct >= 30f) return Yellow;
+				return Red;
 			}
 
-			var sb = new System.Text.StringBuilder();
-			// First line: Train name (no leading newline), plain text
-			sb.Append($"Train: {info.TrainName}");
+			// ==========================================
+			// Train Name
+			// ==========================================
+
+			sb.Append($"<b>{info.TrainName}</b>");
+
+			// ==========================================
+			// Driver
+			// ==========================================
 
 			if (Settings.ShowTrainDriver)
 			{
-				sb.Append(FormatLabelValue("Driver", info.DriverName));
-				if (!string.IsNullOrEmpty(info.DriveMode))
-					sb.Append(FormatLabelValue("Mode", info.DriveMode));
+				if (!string.IsNullOrWhiteSpace(info.DriverName))
+				{
+					sb.Append($"\n\n{Header("Driver")}");
+					sb.Append($"\n{info.DriverName}");
+				}
+
+				if (!string.IsNullOrWhiteSpace(info.DriveMode))
+				{
+					sb.Append($"\n\n{Header("Mode")}");
+					sb.Append($"\n{info.DriveMode}");
+				}
 			}
+
+			// ==========================================
+			// Fuel
+			// ==========================================
+
+			if (Settings.ShowFuel && info.Fuel != null)
+			{
+				sb.Append($"\n\n{Header("Fuel")}");
+
+				if (info.Fuel.IsSteam)
+				{
+					var fuel = new List<string>();
+
+					if (info.Fuel.CoalPercent >= 0f)
+					{
+						fuel.Add(
+							$"Coal <color={FuelColor(info.Fuel.CoalPercent)}>{info.Fuel.CoalPercent:F0}%</color>");
+					}
+
+					if (info.Fuel.WaterPercent >= 0f)
+					{
+						fuel.Add(
+							$"Water <color={FuelColor(info.Fuel.WaterPercent)}>{info.Fuel.WaterPercent:F0}%</color>");
+					}
+
+					if (fuel.Count > 0)
+						sb.Append("\n" + string.Join("  |  ", fuel));
+				}
+				else
+				{
+					if (info.Fuel.DieselPercent >= 0f)
+					{
+						sb.Append(
+							$"\nDiesel <color={FuelColor(info.Fuel.DieselPercent)}>{info.Fuel.DieselPercent:F0}%</color>");
+					}
+				}
+			}
+
+			// ==========================================
+			// Statistics
+			// ==========================================
 
 			if (Settings.ShowTrainStats)
 			{
-				sb.Append(FormatLabelValue("Speed", $"{info.SpeedMph:F0} mph"));
-				sb.Append(FormatLabelValue("Length", $"{info.LengthFt:F0} ft"));
-				sb.Append(FormatLabelValue("Weight", $"{info.WeightTons:F0} T"));
-				sb.Append(FormatLabelValue("Cars", info.CarCount.ToString()));
+				sb.Append($"\n\n{Header("Statistics")}");
+
+				sb.Append($"\nSpeed      {info.SpeedMph:F0} mph");
+				sb.Append($"\nLength     {info.LengthFt:F0} ft");
+				sb.Append($"\nWeight     {info.WeightTons:F0} T");
+				sb.Append($"\nCars       {info.CarCount}");
+
 				if (info.PassengerCapacity > 0)
 				{
-					sb.Append(FormatLabelValue("Passengers", $"{info.PassengerCount}/{info.PassengerCapacity}"));
+					float pct = (float)info.PassengerCount / info.PassengerCapacity * 100f;
+
+					sb.Append(
+						$"\nPassengers {info.PassengerCount}/{info.PassengerCapacity} ({pct:F0}%)");
 				}
 				else if (info.PassengerCount > 0)
 				{
-					sb.Append(FormatLabelValue("Passengers", info.PassengerCount.ToString()));
+					sb.Append(
+						$"\nPassengers {info.PassengerCount}");
 				}
 			}
 
+			// ==========================================
+			// Consist
+			// ==========================================
+
+			if (Settings.ShowTrainCargoSummary &&
+				info.HasFreightCars &&
+				info.CargoSummary.Count > 0)
+			{
+				sb.Append($"\n\n{Header("Consist")}");
+
+				foreach (var group in info.CargoSummary)
+				{
+					sb.Append($"\n• {group.Count}x {group.Label}");
+				}
+			}
+
+			// ==========================================
+			// Destinations
+			// ==========================================
+
+			if (Settings.ShowDestinations &&
+				info.HasFreightCars &&
+				info.DestinationSummary.Count > 0)
+			{
+				sb.Append($"\n\n{Header("Destinations")}");
+
+				foreach (string destination in info.DestinationSummary)
+				{
+					sb.Append($"\n• {destination}");
+				}
+			}
+
+			_trainTooltipText.richText = true;
 			_trainTooltipText.text = sb.ToString();
 		}
 
@@ -404,6 +603,172 @@ public class MapEnhancer : MonoBehaviour
 		if (_trainTooltipGo != null && _trainTooltipGo.activeSelf)
 		{
 			_trainTooltipGo.SetActive(false);
+		}
+	}
+
+	// private void ShowFreightCarTooltip(FreightCarInfo fci)
+	// {
+	// 	if (_trainTooltipGo == null)
+	// 	{
+	// 		CreateTrainTooltip();
+	// 	}
+
+	// 	if (_trainTooltipText != null)
+	// 	{
+	// 		var sb = new System.Text.StringBuilder();
+
+	// 		sb.Append($"Status\n{(string.IsNullOrEmpty(fci.Status) ? "Unknown" : fci.Status)}");
+
+	// 		if (!string.IsNullOrEmpty(fci.DestinationName))
+	// 		{
+	// 			sb.Append($"\n\nDestination\n{fci.DestinationName}");
+	// 		}
+
+	// 		if (!string.IsNullOrEmpty(fci.CargoName))
+	// 		{
+	// 			sb.Append($"\n\nCargo\n{fci.CargoName}");
+	// 		}
+
+	// 		sb.Append($"\n\nCapacity\n{fci.LoadWeightTons:F0} / {fci.CapacityTons:F0} T");
+	// 		float pct = fci.CapacityTons > 0f ? (fci.LoadWeightTons / fci.CapacityTons) * 100f : 0f;
+	// 		sb.Append($"\n{pct:F0}%");
+
+	// 		sb.Append($"\n\nCar Type\n{fci.CarTypeName}");
+
+	// 		var warnings = new List<string>();
+	// 		if (fci.HasHotbox) warnings.Add("Hotbox");
+	// 		if (fci.HandBrakeApplied) warnings.Add("Hand Brake Applied");
+
+	// 		if (warnings.Count > 0)
+	// 		{
+	// 			sb.Append($"\n\nOther\n{string.Join("\n", warnings)}");
+	// 		}
+
+	// 		_trainTooltipText.text = sb.ToString();
+	// 	}
+
+	// 	if (_trainTooltipGo != null && !_trainTooltipGo.activeSelf)
+	// 	{
+	// 		_trainTooltipGo.SetActive(true);
+	// 	}
+	// }
+
+	private void ShowFreightCarTooltip(FreightCarInfo fci)
+	{
+		if (_trainTooltipGo == null)
+		{
+			CreateTrainTooltip();
+		}
+
+		if (_trainTooltipText != null)
+		{
+			var sb = new System.Text.StringBuilder();
+
+			const string headerColor = "#9CDCFE";
+
+			// -----------------------------
+			// Status
+			// -----------------------------
+			string status = string.IsNullOrWhiteSpace(fci.Status)
+				? "None"
+				: fci.Status;
+
+			string statusColor = status switch
+			{
+				"Delivered" => "#4CAF50",   // Green
+				"Pending"   => "#FFC107",   // Amber
+				"None"      => "#9E9E9E",   // Grey
+				_           => "#FFFFFF"
+			};
+
+			sb.Append($"<color={headerColor}>Status</color>\n");
+			sb.Append($"<color={statusColor}>{status}</color>");
+
+			// -----------------------------
+			// Destination
+			// -----------------------------
+			sb.Append($"\n\n<color={headerColor}>Destination</color>\n");
+
+			if (!string.IsNullOrWhiteSpace(fci.DestinationName))
+				sb.Append(fci.DestinationName);
+			else
+				sb.Append("<color=#9E9E9E>None</color>");
+
+			// -----------------------------
+			// Cargo
+			// -----------------------------
+			sb.Append($"\n\n<color={headerColor}>Cargo</color>\n");
+
+			string cargoName = string.IsNullOrWhiteSpace(fci.CargoName)
+				? "<color=#9E9E9E>Empty</color>"
+				: fci.CargoName;
+
+			sb.Append(cargoName);
+
+			// -----------------------------
+			// Capacity
+			// -----------------------------
+			sb.Append($"\n\n<color={headerColor}>Capacity</color>\n");
+
+			if (fci.CapacityTons > 0f)
+			{
+				if (fci.LoadWeightTons <= 0f)
+				{
+					sb.Append($"Empty (0 / {fci.CapacityTons:F0} T)");
+				}
+				else
+				{
+					float pct = (fci.LoadWeightTons / fci.CapacityTons) * 100f;
+					sb.Append($"{fci.LoadWeightTons:F0} / {fci.CapacityTons:F0} T ({pct:F0}%)");
+				}
+			}
+			else
+			{
+				sb.Append("<color=#9E9E9E>Unknown</color>");
+			}
+
+			// -----------------------------
+			// Car Type
+			// -----------------------------
+			sb.Append($"\n\n<color={headerColor}>Car Type</color>\n");
+
+			if (!string.IsNullOrWhiteSpace(fci.CarTypeName))
+				sb.Append(fci.CarTypeName);
+			else
+				sb.Append("<color=#9E9E9E>Unknown</color>");
+
+			// -----------------------------
+			// Alerts
+			// -----------------------------
+			var alerts = new List<string>();
+
+			if (fci.HasHotbox)
+			{
+				alerts.Add("<color=#EF5350>• Hotbox Detected</color>");
+			}
+
+			if (fci.HandBrakeApplied)
+			{
+				alerts.Add("<color=#FFD54F>• Hand Brake Applied</color>");
+			}
+
+			if (alerts.Count > 0)
+			{
+				sb.Append($"\n\n<color={headerColor}>Alerts</color>");
+
+				foreach (string alert in alerts)
+				{
+					sb.Append($"\n{alert}");
+				}
+			}
+
+			_trainTooltipText.richText = true;
+			_trainTooltipText.text = sb.ToString();
+		}
+
+		if (_trainTooltipGo != null && !_trainTooltipGo.activeSelf)
+		{
+			_trainTooltipGo.SetActive(true);
 		}
 	}
 
@@ -762,7 +1127,8 @@ public class MapEnhancer : MonoBehaviour
 
 			info.SpeedMph = car.VelocityMphAbs;
 
-			info.LengthFt = allCars.Sum(c => c.carLength);
+			float lengthMeters = allCars.Sum(c => c.carLength) + 1.0f * Mathf.Max(0, allCars.Count - 1);
+			info.LengthFt = Mathf.CeilToInt(lengthMeters * 3.28084f);
 			info.WeightTons = allCars.Sum(c => c.Weight) / 2000f;
 			info.CarCount = allCars.Count(c => !c.Archetype.IsLocomotive());
 			int paxCurrent = 0;
@@ -773,6 +1139,122 @@ public class MapEnhancer : MonoBehaviour
 			info.DriverName = GetDriverName(car);
 			info.DriveMode = GetDriveMode(car);
 			// DriveType removed: not shown in tooltip
+
+			// --- Cargo Intelligence ---
+			info.Fuel = TryGetFuelInfo(car);
+			GatherFreightData(info, allCars);
+
+			// --- Temporary Debug Logging ---
+			try
+			{
+				Loader.Log($"[MapEnhancer] Consist cache refresh: Name={info.TrainName}, Length={info.LengthFt} ft, Cars={allCars.Count}, Weight={info.WeightTons:F1} tons");
+				if (info.Fuel != null)
+				{
+					if (info.Fuel.IsSteam)
+					{
+						Loader.Log($"[MapEnhancer]   Steam Fuel - Coal: {info.Fuel.CoalPercent:F1}%, Water: {info.Fuel.WaterPercent:F1}%");
+					}
+					else
+					{
+						Loader.Log($"[MapEnhancer]   Diesel Fuel - Fuel: {info.Fuel.DieselPercent:F1}%");
+					}
+				}
+				if (info.HasFreightCars)
+				{
+					foreach (var fci in info.FreightCars)
+					{
+						Loader.Log($"[MapEnhancer]   Car {fci.Car.id} ({fci.CarTypeName}): Cargo={fci.CargoName}, Load={fci.LoadWeightTons:F1}T/{fci.CapacityTons:F1}T, Status={fci.Status}, Handbrake={fci.HandBrakeApplied}, Hotbox={fci.HasHotbox}");
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				Loader.Log($"[MapEnhancer]   Debug logging error: {ex.Message}");
+			}
+
+			foreach (var c in allCars)
+			{
+				if (c != null && c.id != null)
+				{
+					_trainInfoCache[c.id] = info;
+				}
+			}
+		}
+
+		// Second loop: process any remaining uncached cars (e.g. loose cars/consists without an engine)
+		foreach (var car in TrainController.Shared.Cars)
+		{
+			if (car == null) continue;
+			if (_trainInfoCache.ContainsKey(car.id)) continue;
+
+			var trainset = car.set;
+			if (trainset != null)
+			{
+				if (!processedTrainsets.Add(trainset))
+				{
+					continue;
+				}
+			}
+
+			// Gather consist/list of cars in this engine-less trainset
+			List<Car> allCars;
+			if (trainset != null && trainset.Cars != null)
+			{
+				allCars = new List<Car>();
+				foreach (var c in trainset.Cars)
+				{
+					if (c != null) allCars.Add(c);
+				}
+			}
+			else
+			{
+				allCars = new List<Car> { car };
+			}
+
+			if (allCars.Count == 0) continue;
+
+			var info = new TrainInfo();
+			info.LeadLoco = null!; // No locomotive
+			
+			// For engine-less consists, name it using the first car or similar
+			var leadCar = allCars[0];
+			info.TrainName = leadCar.DisplayName ?? leadCar.Ident.RoadNumber ?? leadCar.id ?? "Unknown";
+
+			info.SpeedMph = leadCar.VelocityMphAbs;
+
+			float lengthMeters = allCars.Sum(c => c.carLength) + 1.0f * Mathf.Max(0, allCars.Count - 1);
+			info.LengthFt = Mathf.CeilToInt(lengthMeters * 3.28084f);
+			info.WeightTons = allCars.Sum(c => c.Weight) / 2000f;
+			info.CarCount = allCars.Count(c => !c.Archetype.IsLocomotive());
+			
+			int paxCurrent = 0;
+			int paxCapacity = 0;
+			TryGetPassengerCounts(allCars, out paxCurrent, out paxCapacity);
+			info.PassengerCount = paxCurrent;
+			info.PassengerCapacity = paxCapacity;
+			
+			info.DriverName = "";
+			info.DriveMode = "";
+
+			info.Fuel = null;
+			GatherFreightData(info, allCars);
+
+			// --- Temporary Debug Logging for Loose Cars ---
+			try
+			{
+				Loader.Log($"[MapEnhancer] Loose consist cache refresh: Name={info.TrainName}, Length={info.LengthFt} ft, Cars={allCars.Count}, Weight={info.WeightTons:F1} tons");
+				if (info.HasFreightCars)
+				{
+					foreach (var fci in info.FreightCars)
+					{
+						Loader.Log($"[MapEnhancer]   Car {fci.Car.id} ({fci.CarTypeName}): Cargo={fci.CargoName}, Load={fci.LoadWeightTons:F1}T/{fci.CapacityTons:F1}T, Status={fci.Status}, Handbrake={fci.HandBrakeApplied}, Hotbox={fci.HasHotbox}");
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				Loader.Log($"[MapEnhancer]   Loose debug logging error: {ex.Message}");
+			}
 
 			foreach (var c in allCars)
 			{
@@ -1034,6 +1516,397 @@ public class MapEnhancer : MonoBehaviour
 		if (rawMode.Equals("Yard", StringComparison.OrdinalIgnoreCase)) return "AE Yard";
 		if (rawMode.Equals("Off", StringComparison.OrdinalIgnoreCase) || rawMode.Equals("None", StringComparison.OrdinalIgnoreCase)) return "Manual";
 		return rawMode;
+	}
+
+	private FuelInfo? TryGetFuelInfo(Car loco)
+	{
+		if (loco == null) return null;
+		try
+		{
+			if (loco is SteamLocomotive steamLoco)
+			{
+				var info = new FuelInfo { IsSteam = true };
+				var fuelCar = steamLoco.FuelCar();
+				if (fuelCar != null && fuelCar.Definition != null)
+				{
+					// Coal slot
+					int coalIdx = fuelCar.Definition.LoadSlots.FindIndex(s => s.RequiredLoadIdentifier == Model.Definition.Data.LoadIdentifier.Coal);
+					if (coalIdx >= 0)
+					{
+						var loadOpt = Model.Ops.CarExtensions.GetLoadInfo(fuelCar, coalIdx);
+						float qty = loadOpt.HasValue ? loadOpt.Value.Quantity : 0f;
+						float cap = fuelCar.Definition.LoadSlots[coalIdx].MaximumCapacity;
+						info.CoalPercent = cap > 0f ? (qty / cap) * 100f : 0f;
+					}
+					else
+					{
+						info.CoalPercent = -1f;
+					}
+
+					// Water slot
+					int waterIdx = fuelCar.Definition.LoadSlots.FindIndex(s => s.RequiredLoadIdentifier == Model.Definition.Data.LoadIdentifier.Water);
+					if (waterIdx >= 0)
+					{
+						var loadOpt = Model.Ops.CarExtensions.GetLoadInfo(fuelCar, waterIdx);
+						float qty = loadOpt.HasValue ? loadOpt.Value.Quantity : 0f;
+						float cap = fuelCar.Definition.LoadSlots[waterIdx].MaximumCapacity;
+						info.WaterPercent = cap > 0f ? (qty / cap) * 100f : 0f;
+					}
+					else
+					{
+						info.WaterPercent = -1f;
+					}
+					return info;
+				}
+			}
+			else if (loco is DieselLocomotive dieselLoco)
+			{
+				var info = new FuelInfo { IsSteam = false };
+				if (dieselLoco.Definition != null)
+				{
+					// Diesel fuel slot
+					int dieselIdx = dieselLoco.Definition.LoadSlots.FindIndex(s => s.RequiredLoadIdentifier == Model.Definition.Data.LoadIdentifier.DieselFuel);
+					if (dieselIdx >= 0)
+					{
+						var loadOpt = Model.Ops.CarExtensions.GetLoadInfo(dieselLoco, dieselIdx);
+						float qty = loadOpt.HasValue ? loadOpt.Value.Quantity : 0f;
+						float cap = dieselLoco.Definition.LoadSlots[dieselIdx].MaximumCapacity;
+						info.DieselPercent = cap > 0f ? (qty / cap) * 100f : 0f;
+						return info;
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			Loader.LogDebug($"TryGetFuelInfo error: {ex.Message}");
+		}
+		return null;
+	}
+
+	private static string GetAreaDisplayName(Area area)
+	{
+		if (area == null || string.IsNullOrEmpty(area.identifier)) return "";
+		
+		string id = area.identifier.ToLowerInvariant();
+		switch (id)
+		{
+			case "sylva": return "Sylva";
+			case "whittier": return "Whittier";
+			case "bryson": return "Bryson";
+			case "dillsboro": return "Dillsboro";
+			case "ela": return "Ela";
+			case "murphy": return "Murphy";
+			case "andrews": return "Andrews";
+			case "barkers-creek":
+			case "barkerscreek": return "Barkers Creek";
+			default:
+				var parts = area.identifier.Split(new[] { '-', '_', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+				for (int i = 0; i < parts.Length; i++)
+				{
+					if (parts[i].Length > 0)
+					{
+						parts[i] = char.ToUpper(parts[i][0]) + parts[i].Substring(1);
+					}
+				}
+				return string.Join(" ", parts);
+		}
+	}
+
+	/// <summary>
+	/// Single-pass consist scan that populates all freight-related fields on <paramref name="info"/>.
+	/// Called from RefreshTrainInfoCache; never called per-frame.
+	/// </summary>
+	private void GatherFreightData(TrainInfo info, List<Car> allCars)
+	{
+		info.HasFreightCars = false;
+		info.LoadedCarCount = 0;
+		info.EmptyCarCount  = 0;
+		info.CargoSummary.Clear();
+		info.DestinationSummary.Clear();
+		info.FreightCars.Clear();
+
+		// Temporary structures for grouping
+		var cargoGroupOrder  = new List<string>();
+		var cargoGroupCounts = new Dictionary<string, int>();
+		var seenDestinations = new HashSet<string>(StringComparer.Ordinal);
+
+		var opsController = OpsController.Shared;
+
+		foreach (var car in allCars)
+		{
+			if (car == null) continue;
+			if (!car.Archetype.IsFreight()) continue;
+
+			info.HasFreightCars = true;
+
+			var fci = new FreightCarInfo();
+			fci.Car = car;
+			fci.CarTypeName = GetCarTypeName(car);
+
+			// --- Destination + Status via OpsController ---
+			try
+			{
+				if (opsController != null)
+				{
+					string destText;
+					bool iconEnabled;
+					Vector3 destPos;
+					OpsCarPosition opsPos;
+					if (opsController.TryGetDestinationInfo(car, out destText, out iconEnabled, out destPos, out opsPos))
+					{
+						if (!string.IsNullOrEmpty(destText))
+						{
+							fci.DestinationName = destText;
+							
+							// Extract area name for consist summary
+							var area = opsController.AreaForCarPosition(opsPos);
+							string areaName = GetAreaDisplayName(area);
+							if (string.IsNullOrEmpty(areaName))
+							{
+								areaName = destText;
+								int spaceIdx = areaName.IndexOf(' ');
+								if (spaceIdx > 0)
+								{
+									if (areaName.StartsWith("Barkers Creek", StringComparison.OrdinalIgnoreCase))
+									{
+										areaName = "Barkers Creek";
+									}
+									else
+									{
+										areaName = areaName.Substring(0, spaceIdx);
+									}
+								}
+							}
+
+							if (!string.IsNullOrEmpty(areaName))
+							{
+								if (seenDestinations.Add(areaName))
+								{
+									info.DestinationSummary.Add(areaName);
+								}
+							}
+						}
+						// iconEnabled = true means the car is at the destination (Delivered)
+						fci.Status = iconEnabled ? "Delivered" : "Pending";
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				Loader.LogDebug($"GatherFreightData DestinationInfo error for {car.id}: {ex.Message}");
+			}
+
+			// --- Cargo name ---
+			try
+			{
+				fci.CargoName = TryGetCargoName(car);
+			}
+			catch (Exception ex)
+			{
+				Loader.LogDebug($"GatherFreightData CargoName error for {car.id}: {ex.Message}");
+			}
+
+			// --- Weight / capacity ---
+			try
+			{
+				(fci.LoadWeightTons, fci.CapacityTons) = TryGetCargoWeight(car);
+			}
+			catch (Exception ex)
+			{
+				Loader.LogDebug($"GatherFreightData Weight error for {car.id}: {ex.Message}");
+			}
+
+			// --- Handbrake ---
+			try
+			{
+				fci.HandBrakeApplied = TryGetHandbrake(car);
+			}
+			catch { }
+
+			// --- Hotbox ---
+			try
+			{
+				fci.HasHotbox = TryGetHotbox(car);
+			}
+			catch { }
+
+			// --- Loaded / empty classification ---
+			bool isLoaded = fci.LoadWeightTons > 0.01f || fci.Status == "Pending";
+			if (isLoaded) info.LoadedCarCount++;
+			else          info.EmptyCarCount++;
+
+			// --- Build cargo group label ---
+			string groupLabel = BuildCargoGroupLabel(car, fci.CargoName, isLoaded);
+			if (!cargoGroupCounts.ContainsKey(groupLabel))
+			{
+				cargoGroupCounts[groupLabel] = 0;
+				cargoGroupOrder.Add(groupLabel);
+			}
+			cargoGroupCounts[groupLabel]++;
+
+			info.FreightCars.Add(fci);
+		}
+
+		// Convert group dict ordered list
+		foreach (var label in cargoGroupOrder)
+		{
+			info.CargoSummary.Add(new CargoGroupEntry { Label = label, Count = cargoGroupCounts[label] });
+		}
+	}
+
+	/// <summary>Returns a human-readable car type name (e.g. "Boxcar", "Hopper").</summary>
+	private static string GetCarTypeName(Car car)
+	{
+		if (car == null) return "Freight Car";
+		try
+		{
+			if (car.Definition != null && !string.IsNullOrEmpty(car.Definition.CarType))
+			{
+				string ct = car.Definition.CarType;
+				if (ct.Length > 0)
+				{
+					return char.ToUpper(ct[0]) + ct.Substring(1);
+				}
+				return ct;
+			}
+			var arch = car.Archetype.ToString();
+			if (arch.StartsWith("Freight", StringComparison.OrdinalIgnoreCase))
+				arch = arch.Substring(7);
+			return string.IsNullOrEmpty(arch) ? "Freight Car" : arch;
+		}
+		catch { return "Freight Car"; }
+	}
+
+	/// <summary>Attempts to read the loaded cargo type name from the car using strongly-typed definitions.</summary>
+	private static string TryGetCargoName(Car car)
+	{
+		if (car == null || car.Definition == null) return "";
+		try
+		{
+			for (int i = 0; i < car.Definition.LoadSlots.Count; i++)
+			{
+				var loadInfoOpt = Model.Ops.CarExtensions.GetLoadInfo(car, i);
+				if (loadInfoOpt.HasValue)
+				{
+					string loadId = loadInfoOpt.Value.LoadId;
+					if (!string.IsNullOrEmpty(loadId))
+					{
+						var lib = Model.CarPrototypeLibrary.instance;
+						if (lib != null)
+						{
+							var loadDef = lib.LoadForId(loadId);
+							if (loadDef != null && !string.IsNullOrEmpty(loadDef.description))
+							{
+								return loadDef.description;
+							}
+						}
+						return loadId;
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			Loader.LogDebug($"TryGetCargoName error: {ex.Message}");
+		}
+		return "";
+	}
+
+	/// <summary>
+	/// Returns (loadWeightTons, capacityTons) for a freight car.
+	/// loadWeightTons is the weight of cargo only (total – empty weight).
+	/// capacityTons is the max rated capacity (0 if unknown).
+	/// </summary>
+	private static (float loadWeight, float capacity) TryGetCargoWeight(Car car)
+	{
+		if (car == null || car.Definition == null) return (0f, 0f);
+		try
+		{
+			float totalLoadWeightTons = 0f;
+			float totalCapacityTons = 0f;
+
+			for (int i = 0; i < car.Definition.LoadSlots.Count; i++)
+			{
+				var loadInfoOpt = Model.Ops.CarExtensions.GetLoadInfo(car, i);
+				if (loadInfoOpt.HasValue)
+				{
+					string loadId = loadInfoOpt.Value.LoadId;
+					if (!string.IsNullOrEmpty(loadId))
+					{
+						var lib = Model.CarPrototypeLibrary.instance;
+						if (lib != null)
+						{
+							var loadDef = lib.LoadForId(loadId);
+							if (loadDef != null)
+							{
+								var qtyCap = Model.Ops.CarExtensions.QuantityCapacityOfLoad(car, loadDef);
+								float qtyLbs = loadDef.Pounds(qtyCap.Item1);
+								float capLbs = loadDef.Pounds(qtyCap.Item2);
+								totalLoadWeightTons += qtyLbs / 2000f;
+								totalCapacityTons += capLbs / 2000f;
+							}
+						}
+					}
+				}
+			}
+			
+			if (totalLoadWeightTons > 0f || totalCapacityTons > 0f)
+			{
+				return (totalLoadWeightTons, totalCapacityTons);
+			}
+		}
+		catch (Exception ex)
+		{
+			Loader.LogDebug($"TryGetCargoWeight error: {ex.Message}");
+		}
+
+		// Fallback: total weight - empty weight
+		try
+		{
+			float totalWeightLbs = car.Weight;
+			float emptyWeightLbs = car.Definition.WeightEmpty;
+			float loadWeightLbs = Mathf.Max(0f, totalWeightLbs - emptyWeightLbs);
+			return (loadWeightLbs / 2000f, 0f);
+		}
+		catch
+		{
+			return (0f, 0f);
+		}
+	}
+
+	/// <summary>Reads the handbrake state via car.air.handbrakeApplied.</summary>
+	private static bool TryGetHandbrake(Car car)
+	{
+		if (car == null || car.air == null) return false;
+		return car.air.handbrakeApplied;
+	}
+
+	/// <summary>Reads the hotbox / overheated journal state via car.HasHotbox.</summary>
+	private static bool TryGetHotbox(Car car)
+	{
+		if (car == null) return false;
+		return car.HasHotbox;
+	}
+
+	/// <summary>
+	/// Builds the consist-summary group label for a freight car,
+	/// e.g. "Loaded Lumber Cars", "Empty Boxcars".
+	/// </summary>
+	private static string BuildCargoGroupLabel(Car car, string cargoName, bool isLoaded)
+	{
+		var carType = GetCarTypeName(car);
+		// Pluralise simply by appending 's' if not already ending with 's'
+		string pluralType = carType.EndsWith("s", StringComparison.OrdinalIgnoreCase) ? carType : carType + "s";
+		if (isLoaded)
+		{
+			string cargoDesc = !string.IsNullOrEmpty(cargoName) ? cargoName : "Cargo";
+			return $"Loaded {cargoDesc} {pluralType}";
+		}
+		else
+		{
+			return $"Empty {pluralType}";
+		}
 	}
 
 	private static void AttachTrainMarkerData(Car car, MapIcon marker)
@@ -3127,7 +4000,22 @@ public class MapEnhancer : MonoBehaviour
 				var tmd = hit.collider.GetComponentInParent<TrainMarkerData>();
 				if (tmd != null && tmd.Car != null && _trainInfoCache.TryGetValue(tmd.Car.id, out var info))
 				{
-					ShowTrainTooltip(info);
+					if (tmd.Car.Archetype.IsLocomotive() || !Settings.ShowIndividualCarTooltip)
+					{
+						ShowTrainTooltip(info);
+					}
+					else
+					{
+						var fci = info.FreightCars.FirstOrDefault(f => f.Car == tmd.Car);
+						if (fci != null)
+						{
+							ShowFreightCarTooltip(fci);
+						}
+						else
+						{
+							ShowTrainTooltip(info);
+						}
+					}
 				}
 				else
 				{
@@ -3848,7 +4736,56 @@ public class MapEnhancer : MonoBehaviour
 		public int PassengerCount;
 		public int PassengerCapacity;
 		public string Destination = "";
+
+		// --- Cargo Intelligence Layer ---
+		public FuelInfo? Fuel;
+		public List<CargoGroupEntry> CargoSummary = new List<CargoGroupEntry>();
+		public List<string> DestinationSummary = new List<string>();
+		public bool HasFreightCars;
+		public int LoadedCarCount;
+		public int EmptyCarCount;
+		public List<FreightCarInfo> FreightCars = new List<FreightCarInfo>();
 	}
+
+	/// <summary>Locomotive fuel levels for display in the train tooltip.</summary>
+	private class FuelInfo
+	{
+		public bool IsSteam;
+		/// <summary>0-100 percentage of coal remaining (steam only).</summary>
+		public float CoalPercent;
+		/// <summary>0-100 percentage of water remaining (steam only).</summary>
+		public float WaterPercent;
+		/// <summary>0-100 percentage of diesel remaining (diesel only).</summary>
+		public float DieselPercent;
+	}
+
+	/// <summary>A grouped cargo entry for the consist summary (e.g. "5x Loaded Lumber Cars").</summary>
+	private class CargoGroupEntry
+	{
+		public string Label = "";
+		public int Count;
+	}
+
+	/// <summary>Per-car freight data cached for the individual car hover tooltip.</summary>
+	private class FreightCarInfo
+	{
+		public Car Car = null!;
+		/// <summary>Cargo type name (e.g. "Lumber"), or empty if unknown.</summary>
+		public string CargoName = "";
+		/// <summary>Destination station/area name (e.g. "Sylva Sawmill"), or empty if none.</summary>
+		public string DestinationName = "";
+		/// <summary>Car type label (e.g. "Boxcar").</summary>
+		public string CarTypeName = "";
+		/// <summary>Total cargo weight in tons.</summary>
+		public float LoadWeightTons;
+		/// <summary>Maximum cargo capacity in tons (0 if unknown).</summary>
+		public float CapacityTons;
+		/// <summary>"Pending", "Delivered", or "Unknown".</summary>
+		public string Status = "Unknown";
+		public bool HandBrakeApplied;
+		public bool HasHotbox;
+	}
+
 
 	private class TrainMarkerData : MonoBehaviour
 	{
