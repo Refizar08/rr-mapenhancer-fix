@@ -2,6 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.5.5-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
 [![Game](https://img.shields.io/badge/Railroader-2025-green.svg)](https://store.steampowered.com/app/1683150/Railroader/)
+[![Download](https://img.shields.io/badge/Download-Latest%20Release-success?logo=github)](https://github.com/Refizar08/rr-mapenhancer-fix/releases/download/v1.5.5/MapEnhancer_v1.5.5.zip)
 
 > **Note:** This is a maintained fork by me with fixes and improvements for Map Enhancer. I had pull from the main repository but provide working updates and bug fixes until Vanguard officially updates the original mod.
 
