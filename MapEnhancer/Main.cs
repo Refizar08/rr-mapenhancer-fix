@@ -157,6 +157,7 @@ public static class Loader
 	public bool ShowTrainCargoSummary    = true;
 	public bool ShowDestinations         = true;
 	public bool ShowIndividualCarTooltip = true;
+	public bool EnableDebugLogging       = false;
 
 	// Tooltip customization removed: tooltips use plain formatting
 
@@ -472,6 +473,19 @@ public static class Loader
 			GUILayout.Label("  ℹ️ Only vanilla locations will be shown in the teleport dropdown.", GUILayout.ExpandWidth(true));
 		}
 
+			GUILayout.Space(UnityModManager.UI.Scale(10));
+			GUILayout.Label("--- Debug Logging ---", GUILayout.ExpandWidth(true));
+			using (new GUILayout.HorizontalScope())
+			{
+				var debugLogging = GUILayout.Toggle(Settings.EnableDebugLogging, "Enable Debug Logging");
+				if (Settings.EnableDebugLogging != debugLogging)
+				{
+					Settings.EnableDebugLogging = debugLogging;
+					changed = true;
+				}
+			}
+			GUILayout.Label("  ℹ️ Keeps verbose diagnostics out of Player.log unless you are actively debugging.", GUILayout.ExpandWidth(true));
+
 		GUILayout.Space(UnityModManager.UI.Scale(10));
 		GUILayout.Label("--- Grade Indicators ---", GUILayout.ExpandWidth(true));
 
@@ -697,6 +711,7 @@ public static class Loader
 			Settings.ShowTrainCargoSummary    = true;
 			Settings.ShowDestinations         = true;
 			Settings.ShowIndividualCarTooltip = true;
+			Settings.EnableDebugLogging       = false;
 			
 			Log("All settings have been reset to their default values.");
 		}
@@ -761,8 +776,15 @@ public static class Loader
 
 	public static void LogDebug(string str)
 	{
+		if (Settings?.EnableDebugLogging == true)
+		{
+			ModEntry?.Logger.Log(str);
+		}
 #if DEBUG
-		ModEntry?.Logger.Log(str);
+		else
+		{
+			ModEntry?.Logger.Log(str);
+		}
 #endif
 	}
 }

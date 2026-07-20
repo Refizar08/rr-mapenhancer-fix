@@ -1301,12 +1301,12 @@ public class MapEnhancer : MonoBehaviour
 			_consistRefreshLogSignatures[cacheKey] = signature;
 			foreach (var line in lines)
 			{
-				Loader.Log(line);
+				Loader.LogDebug(line);
 			}
 		}
 		catch (Exception ex)
 		{
-			Loader.Log($"[MapEnhancer]   {label} debug logging error: {ex.Message}");
+			Loader.LogDebug($"[MapEnhancer]   {label} debug logging error: {ex.Message}");
 		}
 	}
 
@@ -3839,14 +3839,14 @@ public class MapEnhancer : MonoBehaviour
 
 		if (IsClientMultiplayer() && !IsHostMultiplayer())
 		{
-			Loader.Log("Turntable map controls are host-only in multiplayer.");
+			Loader.LogDebug("Turntable map controls are host-only in multiplayer.");
 			return;
 		}
 
 		// Check if turntable control is disabled in settings
 		if (!UMM.Loader.Settings.EnableTurntableControl)
 		{
-			Loader.Log("Turntable control is disabled in settings. Enable it in the mod settings to rotate turntables.");
+			Loader.LogDebug("Turntable control is disabled in settings. Enable it in the mod settings to rotate turntables.");
 			return;
 		}
 
@@ -3854,14 +3854,14 @@ public class MapEnhancer : MonoBehaviour
 		if (!Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl) && 
 		    !Input.GetKey(KeyCode.LeftAlt) && !Input.GetKey(KeyCode.RightAlt))
 		{
-			Loader.Log("Turntable controls: Ctrl+Click = clockwise, Alt+Click = counterclockwise, Shift+Click = 180°. Plain click shows this hint only.");
+			Loader.LogDebug("Turntable controls: Ctrl+Click = clockwise, Alt+Click = counterclockwise, Shift+Click = 180°. Plain click shows this hint only.");
 			return;
 		}
 
 		var activeIndexes = helper.ActiveTrackIndexes;
 		if (activeIndexes.Count == 0)
 		{
-			Loader.Log("No active tracks connected to turntable");
+			Loader.LogDebug("No active tracks connected to turntable");
 			return;
 		}
 
@@ -3873,7 +3873,7 @@ public class MapEnhancer : MonoBehaviour
 		if (rotated)
 		{
 			var direction = clockwise ? "clockwise" : "counterclockwise";
-			Loader.Log($"Rotating turntable {direction}. Hold Ctrl+Click for clockwise, Alt+Click for counterclockwise, or Shift+Click for 180° rotation");
+			Loader.LogDebug($"Rotating turntable {direction}. Hold Ctrl+Click for clockwise, Alt+Click for counterclockwise, or Shift+Click for 180° rotation");
 		}
 	}
 
@@ -3884,21 +3884,21 @@ public class MapEnhancer : MonoBehaviour
 
 		if (IsClientMultiplayer() && !IsHostMultiplayer())
 		{
-			Loader.Log("Turntable map controls are host-only in multiplayer.");
+			Loader.LogDebug("Turntable map controls are host-only in multiplayer.");
 			return;
 		}
 
 		// Check if turntable control is disabled in settings
 		if (!UMM.Loader.Settings.EnableTurntableControl)
 		{
-			Loader.Log("Turntable control is disabled in settings. Enable it in the mod settings to rotate turntables.");
+			Loader.LogDebug("Turntable control is disabled in settings. Enable it in the mod settings to rotate turntables.");
 			return;
 		}
 
 		// Rotate 180 degrees using the instance method
 		if (helper.Rotate180())
 		{
-			Loader.Log("Rotating turntable 180 degrees to reverse engine");
+			Loader.LogDebug("Rotating turntable 180 degrees to reverse engine");
 		}
 	}
 

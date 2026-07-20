@@ -175,7 +175,7 @@ public class TurntableHelper : MonoBehaviour
 
     private bool BeginLocalRotation(int trackNodeIndex, string context)
     {
-        Loader.Log($"WARNING: Rotating turntable to track {trackNodeIndex} using smooth local fallback ({context})");
+        Loader.LogDebug($"WARNING: Rotating turntable to track {trackNodeIndex} using smooth local fallback ({context})");
         var currentIndex = GetCurrentIndex();
         _fallbackFromAngle = currentIndex >= 0
             ? _controller.turntable.AngleForIndex(currentIndex)
@@ -208,12 +208,12 @@ public class TurntableHelper : MonoBehaviour
         var request = new TurntableRequestState(turntableId, trackNodeIndex, ++_requestSequence);
         if (Multiplayer.IsHost)
         {
-            Loader.Log($"Rotating turntable to track {trackNodeIndex} (host applying request for '{turntableId}', seq {request.Sequence})");
+            Loader.LogDebug($"Rotating turntable to track {trackNodeIndex} (host applying request for '{turntableId}', seq {request.Sequence})");
             ApplyTurntableRequest(request, "host applying map request");
             return true;
         }
 
-        Loader.Log($"Rotating turntable to track {trackNodeIndex} (request queued for '{turntableId}', seq {request.Sequence})");
+        Loader.LogDebug($"Rotating turntable to track {trackNodeIndex} (request queued for '{turntableId}', seq {request.Sequence})");
         StateManager.ApplyLocal(new PropertyChange(TurntableRequestStorage.ObjectId, turntableId, PropertyValueConverter.RuntimeToSnapshot(request.ToPropertyValue())));
         return true;
     }
@@ -274,7 +274,7 @@ public class TurntableHelper : MonoBehaviour
     private void CompleteRotation(string message)
     {
         _isRotating = false;
-        Loader.Log(message);
+        Loader.LogDebug(message);
         OnRotationComplete?.Invoke();
         StartNextQueuedRequest();
     }
@@ -319,7 +319,7 @@ public class TurntableHelper : MonoBehaviour
 
     private void ApplyTurntableRequest(TurntableRequestState request, string context)
     {
-        Loader.Log($"Turntable request received for '{request.TurntableId}' -> track {request.TrackNodeIndex} (seq {request.Sequence})");
+        Loader.LogDebug($"Turntable request received for '{request.TurntableId}' -> track {request.TrackNodeIndex} (seq {request.Sequence})");
 
         if (_isRotating)
         {
