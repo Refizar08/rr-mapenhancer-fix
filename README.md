@@ -1,8 +1,8 @@
 # Map Enhancer - Community Fix Edition
 
-[![Version](https://img.shields.io/badge/version-1.5.5-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
+[![Version](https://img.shields.io/badge/version-1.5.6-blue.svg)](https://github.com/Refizar08/rr-mapenhancer-fix/releases)
 [![Game](https://img.shields.io/badge/Railroader-2025-green.svg)](https://store.steampowered.com/app/1683150/Railroader/)
-[![Download](https://img.shields.io/badge/Download-Latest%20Release-success?logo=github)](https://github.com/Refizar08/rr-mapenhancer-fix/releases/download/v1.5.5/MapEnhancer_v1.5.5.zip)
+[![Download](https://img.shields.io/badge/Download-Latest%20Release-success?logo=github)](https://github.com/Refizar08/rr-mapenhancer-fix/releases/download/v1.5.6/MapEnhancer_v1.5.6.zip)
 
 > **Note:** This is a maintained fork by me with fixes and improvements for Map Enhancer. I had pull from the main repository but provide working updates and bug fixes until Vanguard officially updates the original mod.
 
@@ -21,6 +21,8 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 ## ✨ Features
 
 ### 🆕 Community Fork Exclusive Features
+
+#### **Fix Debug logging spam** (v1.5.6)
 
 #### **Train & Cargo Intelligence Layer** (v1.5.5)
 - 🧠 Added: Live train details on hover (driver, speed, weight, cars, consist length)
@@ -310,6 +312,9 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 
 ## 📜 Version History
 
+### v1.5.6 (2026-07-21)
+- ✨ Fix debug logging too much spam in player.log
+	- Added a toggle in settings to enable debug logs
 
 ### v1.5.5 (2026-06-27)
 
