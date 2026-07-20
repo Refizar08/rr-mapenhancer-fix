@@ -154,6 +154,7 @@ public class MapEnhancer : MonoBehaviour
 
 	// Train Intelligence Layer
 	private Dictionary<string, TrainInfo> _trainInfoCache = new Dictionary<string, TrainInfo>();
+	private readonly Dictionary<string, string> _consistRefreshLogSignatures = new Dictionary<string, string>(StringComparer.Ordinal);
 	private Coroutine? _trainInfoUpdater;
 	private GameObject? _trainTooltipGo;
 	private TextMeshProUGUI? _trainTooltipText;
@@ -1178,33 +1179,7 @@ public class MapEnhancer : MonoBehaviour
 			info.Fuel = TryGetFuelInfo(car);
 			GatherFreightData(info, allCars);
 
-			// --- Temporary Debug Logging ---
-			try
-			{
-				Loader.Log($"[MapEnhancer] Consist cache refresh: Name={info.TrainName}, Length={info.LengthFt} ft, Cars={allCars.Count}, Weight={info.WeightTons:F1} tons");
-				if (info.Fuel != null)
-				{
-					if (info.Fuel.IsSteam)
-					{
-						Loader.Log($"[MapEnhancer]   Steam Fuel - Coal: {info.Fuel.CoalPercent:F1}%, Water: {info.Fuel.WaterPercent:F1}%");
-					}
-					else
-					{
-						Loader.Log($"[MapEnhancer]   Diesel Fuel - Fuel: {info.Fuel.DieselPercent:F1}%");
-					}
-				}
-				if (info.HasFreightCars)
-				{
-					foreach (var fci in info.FreightCars)
-					{
-						Loader.Log($"[MapEnhancer]   Car {fci.Car.id} ({fci.CarTypeName}): Cargo={fci.CargoName}, Load={fci.LoadWeightTons:F1}T/{fci.CapacityTons:F1}T, Status={fci.Status}, Handbrake={fci.HandBrakeApplied}, Hotbox={fci.HasHotbox}");
-					}
-				}
-			}
-			catch (Exception ex)
-			{
-				Loader.Log($"[MapEnhancer]   Debug logging error: {ex.Message}");
-			}
+			LogConsistRefreshIfChanged("Consist", info, allCars, includeFuel: true);
 
 			foreach (var c in allCars)
 			{
@@ -1273,22 +1248,7 @@ public class MapEnhancer : MonoBehaviour
 			info.Fuel = null;
 			GatherFreightData(info, allCars);
 
-			// --- Temporary Debug Logging for Loose Cars ---
-			try
-			{
-				Loader.Log($"[MapEnhancer] Loose consist cache refresh: Name={info.TrainName}, Length={info.LengthFt} ft, Cars={allCars.Count}, Weight={info.WeightTons:F1} tons");
-				if (info.HasFreightCars)
-				{
-					foreach (var fci in info.FreightCars)
-					{
-						Loader.Log($"[MapEnhancer]   Car {fci.Car.id} ({fci.CarTypeName}): Cargo={fci.CargoName}, Load={fci.LoadWeightTons:F1}T/{fci.CapacityTons:F1}T, Status={fci.Status}, Handbrake={fci.HandBrakeApplied}, Hotbox={fci.HasHotbox}");
-					}
-				}
-			}
-			catch (Exception ex)
-			{
-				Loader.Log($"[MapEnhancer]   Loose debug logging error: {ex.Message}");
-			}
+			LogConsistRefreshIfChanged("Loose consist", info, allCars, includeFuel: false);
 
 			foreach (var c in allCars)
 			{
@@ -1300,6 +1260,72 @@ public class MapEnhancer : MonoBehaviour
 		}
 
 		// Waypoint marker feature removed; no per-selected-loco marker update
+	}
+
+	private void LogConsistRefreshIfChanged(string label, TrainInfo info, List<Car> allCars, bool includeFuel)
+	{
+		try
+		{
+			var lines = new List<string>
+			{
+				$"[MapEnhancer] {label} cache refresh: Name={info.TrainName}, Length={info.LengthFt} ft, Cars={allCars.Count}, Weight={info.WeightTons:F1} tons"
+			};
+
+			if (includeFuel && info.Fuel != null)
+			{
+				if (info.Fuel.IsSteam)
+				{
+					lines.Add($"[MapEnhancer]   Steam Fuel - Coal: {info.Fuel.CoalPercent:F1}%, Water: {info.Fuel.WaterPercent:F1}%");
+				}
+				else
+				{
+					lines.Add($"[MapEnhancer]   Diesel Fuel - Fuel: {info.Fuel.DieselPercent:F1}%");
+				}
+			}
+
+			if (info.HasFreightCars)
+			{
+				foreach (var fci in info.FreightCars)
+				{
+					lines.Add($"[MapEnhancer]   Car {fci.Car.id} ({fci.CarTypeName}): Cargo={fci.CargoName}, Load={fci.LoadWeightTons:F1}T/{fci.CapacityTons:F1}T, Status={fci.Status}, Handbrake={fci.HandBrakeApplied}, Hotbox={fci.HasHotbox}");
+				}
+			}
+
+			var cacheKey = $"{label}:{BuildConsistLogKey(allCars)}";
+			var signature = string.Join("\n", lines);
+			if (_consistRefreshLogSignatures.TryGetValue(cacheKey, out var previousSignature) && previousSignature == signature)
+			{
+				return;
+			}
+
+			_consistRefreshLogSignatures[cacheKey] = signature;
+			foreach (var line in lines)
+			{
+				Loader.Log(line);
+			}
+		}
+		catch (Exception ex)
+		{
+			Loader.Log($"[MapEnhancer]   {label} debug logging error: {ex.Message}");
+		}
+	}
+
+	private static string BuildConsistLogKey(List<Car> allCars)
+	{
+		var ids = allCars
+			.Where(car => car != null && !string.IsNullOrEmpty(car.id))
+			.Select(car => car.id!)
+			.Distinct(StringComparer.Ordinal)
+			.OrderBy(id => id, StringComparer.Ordinal)
+			.ToArray();
+
+		if (ids.Length > 0)
+		{
+			return string.Join("|", ids);
+		}
+
+		var fallbackCar = allCars.Count > 0 ? allCars[0] : null;
+		return fallbackCar?.id ?? fallbackCar?.DisplayName ?? "unknown";
 	}
 
 	private List<Car> GetConsistCars(Car loco)
@@ -2217,6 +2243,7 @@ public class MapEnhancer : MonoBehaviour
 		if (traincarColorUpdater != null) StopCoroutine(traincarColorUpdater);
 		if (_trainInfoUpdater != null) StopCoroutine(_trainInfoUpdater);
 		_trainInfoCache.Clear();
+		_consistRefreshLogSignatures.Clear();
 
 		MapWindow.instance._window.OnShownDidChange -= OnMapWindowShown;
 
