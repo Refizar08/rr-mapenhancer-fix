@@ -22,7 +22,30 @@ This version of Map Enhancer is **up-to-date and fully functional** with the lat
 
 ### 🆕 Community Fork Exclusive Features
 
-#### **Fix Debug logging spam** (v1.5.6)
+### **Fixes and Improvements** v1.5.6 (2026-07-21)
+
+- 🛠️ Added: **Enable Debug Logging** setting
+  - Added a dedicated toggle to enable verbose diagnostic logging only when needed.
+  - Keeps `Player.log` clean during normal gameplay while allowing detailed troubleshooting when debugging.
+  - Verbose consist refresh and turntable synchronization logs are now only written when Debug Logging is enabled.
+
+- 📋 Improved: Logging
+  - Reduced repetitive consist refresh log spam by deduplicating identical entries.
+  - Moved routine turntable status messages to debug-only logging.
+  - Important warnings and errors continue to be logged regardless of the debug setting.
+
+- 🗺️ Added: **Advanced Map Window Controls** toggle
+  - Added a new setting to show or hide optional controls in the in-game map window.
+  - When enabled, the map displays:
+    - Switch Reset
+    - Hover Grade
+    - Grade Markers
+    - Grade Color Overlay
+  - When disabled, only the essential Location and Locomotive controls remain for a cleaner interface.
+
+- 🎨 Improved: Map Window
+  - The map window now preserves its current size when advanced controls are shown or hidden.
+  - Eliminated unwanted resizing caused by toggling map controls, resulting in a smoother user experience.
 
 #### **Train & Cargo Intelligence Layer** (v1.5.5)
 - 🧠 Added: Live train details on hover (driver, speed, weight, cars, consist length)
@@ -313,8 +336,18 @@ Contributions are welcome! If you'd like to help improve Map Enhancer:
 ## 📜 Version History
 
 ### v1.5.6 (2026-07-21)
-- ✨ Fix debug logging too much spam in player.log
+- ✨ Fix debug logging spam in player.log
 	- Added a toggle in settings to enable debug logs
+   
+- 📋 Improved: Logging
+  - Reduced repetitive consist refresh log spam by deduplicating identical entries.
+  - Moved routine turntable status messages to debug-only logging.
+
+- 🗺️ Added: **Advanced Map Window Controls** toggle
+  - Added a new setting to show or hide optional controls in the in-game map window.
+
+- 🎨 Improved: Map Window
+  - The map window now preserves its current size when advanced controls are shown or hidden.
 
 ### v1.5.5 (2026-06-27)
 
