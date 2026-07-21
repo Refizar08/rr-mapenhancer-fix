@@ -120,6 +120,7 @@ public static class Loader
 	public bool EnablePassengerStopTracking = false; // Track passenger stop segments
 	public bool EnableIndustryAreaColors = true; // Color industrial tracks by their area colors
 	public bool EnableModdedSpawnPoints = false; // Show additional locations from mods in location dropdown (auto-discovers all mods with spawn-points.json)
+	public bool ShowAdvancedMapWindowSettings = true; // Show optional settings (switch reset + grade toggles) in in-game map window
 	
 	// Turntable marker settings
 	public bool ShowTurntableMarkers = true; // Show clickable markers on turntables
@@ -473,6 +474,25 @@ public static class Loader
 			GUILayout.Label("  ℹ️ Only vanilla locations will be shown in the teleport dropdown.", GUILayout.ExpandWidth(true));
 		}
 
+		GUILayout.Space(UnityModManager.UI.Scale(5));
+		using (new GUILayout.HorizontalScope())
+		{
+			var showMapWindowAdvanced = GUILayout.Toggle(Settings.ShowAdvancedMapWindowSettings, "Show Advanced Controls in In-Game Map Window");
+			if (Settings.ShowAdvancedMapWindowSettings != showMapWindowAdvanced)
+			{
+				Settings.ShowAdvancedMapWindowSettings = showMapWindowAdvanced;
+				changed = true;
+			}
+		}
+		if (Settings.ShowAdvancedMapWindowSettings)
+		{
+			GUILayout.Label("  ℹ️ Shows Switch Reset, Hover Grade, Grade Markers, and Color Overlay controls on the in-game map.", GUILayout.ExpandWidth(true));
+		}
+		else
+		{
+			GUILayout.Label("  ℹ️ Hides optional map controls to keep the in-game map panel minimal.", GUILayout.ExpandWidth(true));
+		}
+
 			GUILayout.Space(UnityModManager.UI.Scale(10));
 			GUILayout.Label("--- Debug Logging ---", GUILayout.ExpandWidth(true));
 			using (new GUILayout.HorizontalScope())
@@ -686,6 +706,7 @@ public static class Loader
 			Settings.EnablePassengerStopTracking = false;
 			Settings.EnableIndustryAreaColors = true;
 			Settings.EnableModdedSpawnPoints = false;
+			Settings.ShowAdvancedMapWindowSettings = true;
 			
 			// Reset turntable marker color
 			Settings.TurntableMarkerColor = new Color(0.8f, 0.5f, 0.2f, 0.4f);

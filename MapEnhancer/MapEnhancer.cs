@@ -159,6 +159,7 @@ public class MapEnhancer : MonoBehaviour
 	private GameObject? _trainTooltipGo;
 	private TextMeshProUGUI? _trainTooltipText;
 	private RectTransform? _trainTooltipRect;
+	private bool _lastShowAdvancedMapWindowSettings = true;
 	
 	public static HashSet<string> mainlineSegments
 	{
@@ -2545,7 +2546,8 @@ public class MapEnhancer : MonoBehaviour
 		var settingsGo = new GameObject("Map Settings", typeof(RectTransform));
 		mapSettings = settingsGo.GetComponent<RectTransform>();
 		mapSettings.SetParent(MapWindow.instance._window.transform, false);
-		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, 210);
+		var settingsPanelHeight = Settings.ShowAdvancedMapWindowSettings ? 210f : 108f;
+		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Top, 27, settingsPanelHeight);
 		mapSettings.SetInsetAndSizeFromParentEdge(RectTransform.Edge.Right, 4, 145);
 
 		settingsGo.AddComponent<GraphicRaycaster>();
@@ -2554,23 +2556,26 @@ public class MapEnhancer : MonoBehaviour
 		{
 			builder.FieldLabelWidth = 105f;
 			builder.AddField("Follow Mode", builder.AddToggle(() => mapFollowMode, (x) => mapFollowMode = x));
-			
-			builder.AddField("Hover Grade", builder.AddToggle(() => Settings.ShowGradeOnHover, (x) => {
-				Settings.ShowGradeOnHover = x;
-				Settings.Save(Loader.ModEntry);
-			}));
-			
-			builder.AddField("Grade Markers", builder.AddToggle(() => Settings.ShowGradeMarkers, (x) => {
-				Settings.ShowGradeMarkers = x;
-				Settings.Save(Loader.ModEntry);
-				OnSettingsChanged();
-			}));
-			
-			builder.AddField("Color Overlay", builder.AddToggle(() => Settings.EnableGradeColorOverlay, (x) => {
-				Settings.EnableGradeColorOverlay = x;
-				Settings.Save(Loader.ModEntry);
-				OnSettingsChanged();
-			}));
+
+			if (Settings.ShowAdvancedMapWindowSettings)
+			{
+				builder.AddField("Hover Grade", builder.AddToggle(() => Settings.ShowGradeOnHover, (x) => {
+					Settings.ShowGradeOnHover = x;
+					Settings.Save(Loader.ModEntry);
+				}));
+
+				builder.AddField("Grade Markers", builder.AddToggle(() => Settings.ShowGradeMarkers, (x) => {
+					Settings.ShowGradeMarkers = x;
+					Settings.Save(Loader.ModEntry);
+					OnSettingsChanged();
+				}));
+
+				builder.AddField("Color Overlay", builder.AddToggle(() => Settings.EnableGradeColorOverlay, (x) => {
+					Settings.EnableGradeColorOverlay = x;
+					Settings.Save(Loader.ModEntry);
+					OnSettingsChanged();
+				}));
+			}
 
 			TMP_Dropdown? dropdown = null;
 			var teleportLocations = GetTeleportLocations();
@@ -2593,10 +2598,15 @@ public class MapEnhancer : MonoBehaviour
 				mapCamera.position = WorldTransformer.GameToWorld(item);
 				dropdown!.SetValueWithoutNotify(0);
 			}
-		}).GetComponent<TMP_Dropdown>();		AddLocoSelectorDropdown(builder);
-		AddResetSwitchesDropdown(builder);
+		}).GetComponent<TMP_Dropdown>();
+		AddLocoSelectorDropdown(builder);
+		if (Settings.ShowAdvancedMapWindowSettings)
+		{
+			AddResetSwitchesDropdown(builder);
+		}
 	});
 	settingsGo.AddComponent<Image>().color = new Color(0.1098f, 0.1098f, 0.1098f, 1f);
+	_lastShowAdvancedMapWindowSettings = Settings.ShowAdvancedMapWindowSettings;
 	
 	void AddResetSwitchesDropdown(UIPanelBuilder builder)
 	{
@@ -3306,6 +3316,20 @@ public class MapEnhancer : MonoBehaviour
 	{
 		if (MapState != MapStates.MAPLOADED) return;
 
+		if (_lastShowAdvancedMapWindowSettings != Settings.ShowAdvancedMapWindowSettings)
+		{
+			if (mapSettings != null)
+			{
+				Destroy(mapSettings.gameObject);
+				mapSettings = null;
+			}
+
+			if (MapWindow.instance != null && MapWindow.instance._window.IsShown)
+			{
+				CreateMapSettings();
+			}
+		}
+
 		foreach (var junctionMarker in JunctionMarker.junctionMarkerPrefabL.GetComponentsInChildren<CanvasRenderer>(true))
 		{
 			junctionMarker.transform.localScale = Vector3.one * Settings.JunctionMarkerScale;
@@ -3341,7 +3365,8 @@ public class MapEnhancer : MonoBehaviour
 			renderTex.antiAliasing = (int)Settings.MSAA;
 		}
 
-		if (MapWindow.instance._window.IsShown)
+		var mapWindow = MapWindow.instance;
+		if (mapWindow != null && mapWindow._window.IsShown)
 		{
 			mapBuilder.mapCamera.orthographicSize =
 				Mathf.Clamp(MapBuilder.Shared.mapCamera.orthographicSize, Settings.MapZoomMin, Settings.MapZoomMax);
