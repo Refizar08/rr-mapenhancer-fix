@@ -186,7 +186,17 @@ namespace MapEnhancer
 		if (!isLarge)
 		{
 			var windowRectTransform = window._rectTransform;
-			windowRectTransform.sizeDelta = defaultSize;
+			var currentSize = windowRectTransform.sizeDelta;
+
+			// Preserve user-resized size when settings change; only clamp up to the new minimum bounds.
+			var clampedSize = new Vector2(
+				Mathf.Max(currentSize.x, base.minSize.x),
+				Mathf.Max(currentSize.y, base.minSize.y));
+
+			if ((clampedSize - currentSize).sqrMagnitude > 0.01f)
+			{
+				windowRectTransform.sizeDelta = clampedSize;
+			}
 		}
 	}		public void Toggle()
 		{

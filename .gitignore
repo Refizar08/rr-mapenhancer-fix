@@ -411,3 +411,4 @@ Directory.Build.props
 *.html
 
 railroader.json
+build.bat
